@@ -724,4 +724,7 @@ static inline void cpufreq_task_stats_free(struct task_struct *p) {}
 static inline void cpufreq_task_stats_exit(struct task_struct *p) {}
 static inline void cpufreq_task_stats_remove_uids(uid_t uid_start,
 	uid_t uid_end) {}
+
 #endif
+
+extern unsigned int cpuinfo_max_freq_cached;
