@@ -1117,8 +1117,11 @@ static ssize_t clear_refs_write(struct file *file, const char __user *buf,
 					goto out_mm;
 				}
 				for (vma = mm->mmap; vma; vma = vma->vm_next) {
-					vma->vm_flags &= ~VM_SOFTDIRTY;
+					vm_write_begin(vma);
+					WRITE_ONCE(vma->vm_flags,
+						   vma->vm_flags & ~VM_SOFTDIRTY);
 					vma_set_page_prot(vma);
+					vm_write_end(vma);
 				}
 				downgrade_write(&mm->mmap_sem);
 				break;
@@ -1575,7 +1578,7 @@ static int deactivate_pte_range(pmd_t *pmd, unsigned long addr,
 
 	pte_unmap_unlock(orig_pte, ptl);
 	cond_resched();
-	return 0;
+	return (rp->nr_to_reclaim == 0) ? -EPIPE : 0;
 }
 
 
