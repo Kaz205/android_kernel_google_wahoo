@@ -1104,7 +1104,7 @@ static int __init alarmtimer_init(void)
 		error = PTR_ERR(pdev);
 		goto out_drv;
 	}
-	ws = wakeup_source_register("alarmtimer");
+	ws = wakeup_source_register(NULL, "alarmtimer");
 	if (!ws) {
 		error = -ENOMEM;
 		goto out_ws;
