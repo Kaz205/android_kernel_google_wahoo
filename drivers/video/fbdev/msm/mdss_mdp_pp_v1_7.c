@@ -1042,6 +1042,8 @@ static int pp_pcc_get_config(char __iomem *base_addr, void *cfg_data,
 	char __iomem *addr;
 	struct mdp_pcc_cfg_data *pcc_cfg = NULL;
 	struct mdp_pcc_data_v1_7 pcc_data;
+	size_t size = sizeof(pcc_data);
+	int ret;
 
 	if (!base_addr || !cfg_data) {
 		pr_err("invalid params base_addr %pK cfg_data %pK\n",
@@ -1096,13 +1098,20 @@ static int pp_pcc_get_config(char __iomem *base_addr, void *cfg_data,
 	pcc_data.g.rgb = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
 	pcc_data.b.rgb = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
 
-	if (copy_to_user(pcc_cfg->cfg_payload, &pcc_data,
-			 sizeof(pcc_data))) {
+	ret = copy_to_user(pcc_cfg->cfg_payload, &pcc_data, size);
+#ifdef CONFIG_FB_MSM_MDSS_KCAL_CTRL
+	/* Fall back to copy to kernel */
+	if (ret) {
+		memcpy(pcc_cfg->cfg_payload, &pcc_data, size);
+		ret = 0;
+	}
+#endif
+	if (ret) {
 		pr_err("failed to copy the pcc info into payload\n");
 		return -EFAULT;
 	}
 
-	return 0;
+	return ret;
 }
 
 static void pp_pa_set_global_adj_regs(char __iomem *base_addr,
