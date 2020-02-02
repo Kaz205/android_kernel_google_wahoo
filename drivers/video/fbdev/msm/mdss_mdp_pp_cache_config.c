@@ -651,6 +651,7 @@ static int pp_pcc_cache_params_v1_7(struct mdp_pcc_cfg_data *config,
 	int ret = 0;
 	struct mdss_pp_res_type_v1_7 *res_cache;
 	struct mdp_pcc_data_v1_7 *v17_cache_data, v17_usr_config;
+	size_t size = sizeof(v17_usr_config);
 
 	if (!config || !mdss_pp_res) {
 		pr_err("invalid param config %pK pp_res %pK\n",
@@ -678,8 +679,15 @@ static int pp_pcc_cache_params_v1_7(struct mdp_pcc_cfg_data *config,
 		v17_cache_data = &res_cache->pcc_v17_data[disp_num];
 		mdss_pp_res->pcc_disp_cfg[disp_num].cfg_payload =
 			(void *) v17_cache_data;
-		if (copy_from_user(&v17_usr_config, config->cfg_payload,
-				   sizeof(v17_usr_config))) {
+		ret = copy_from_user(&v17_usr_config, config->cfg_payload, size);
+#ifdef CONFIG_FB_MSM_MDSS_KCAL_CTRL
+		/* Fall back to copy from kernel */
+		if (ret) {
+			memcpy(&v17_usr_config, config->cfg_payload, size);
+			ret = 0;
+		}
+#endif
+		if (ret) {
 			pr_err("failed to copy v17 pcc\n");
 			ret = -EFAULT;
 			goto pcc_config_exit;
@@ -1161,6 +1169,7 @@ static int pp_pa_cache_params_v1_7(struct mdp_pa_v2_cfg_data *config,
 {
 	struct mdss_pp_res_type_v1_7 *res_cache;
 	struct mdp_pa_data_v1_7 *pa_cache_data, pa_usr_config;
+	size_t size = sizeof(pa_usr_config);
 	int disp_num, ret = 0;
 
 	if (!config || !mdss_pp_res) {
@@ -1192,8 +1201,15 @@ static int pp_pa_cache_params_v1_7(struct mdp_pa_v2_cfg_data *config,
 	mdss_pp_res->pa_v2_disp_cfg[disp_num].cfg_payload =
 		(void *) pa_cache_data;
 
-	if (copy_from_user(&pa_usr_config, config->cfg_payload,
-			   sizeof(pa_usr_config))) {
+	ret = copy_from_user(&pa_usr_config, config->cfg_payload, size);
+#ifdef CONFIG_FB_MSM_MDSS_KCAL_CTRL
+	/* Fall back to copy from kernel */
+	if (ret) {
+		memcpy(&pa_usr_config, config->cfg_payload, size);
+		ret = 0;
+	}
+#endif
+	if (ret) {
 		pr_err("Failed to copy v1_7 PA\n");
 		ret = -EFAULT;
 		goto pa_config_exit;

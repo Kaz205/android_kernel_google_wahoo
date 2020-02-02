@@ -20,6 +20,7 @@ mdss-mdp-objs += mdss_mdp_cdm.o
 mdss-mdp-objs += mdss_smmu.o
 mdss-mdp-objs += mdss_mdp_wfd.o
 obj-$(CONFIG_FB_MSM_MDSS) += mdss-mdp.o
+obj-$(CONFIG_FB_MSM_MDSS_KCAL_CTRL) += mdss_mdp_kcal_ctrl.o
 
 mdss-mdp-objs += mdss_mdp_pp_v1_7.o
 mdss-mdp-objs += mdss_mdp_pp_v3.o
