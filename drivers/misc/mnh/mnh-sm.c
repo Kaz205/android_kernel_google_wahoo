@@ -703,7 +703,6 @@ int mnh_download_firmware_legacy(void)
 	const struct firmware *fip_img;
 	int err;
 	uint32_t size, addr;
-	int i;
 
 	mnh_sm_dev->image_loaded = FW_IMAGE_NONE;
 
