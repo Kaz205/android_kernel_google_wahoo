@@ -1994,11 +1994,11 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 
 	dbg_event(0xFF, "Ctl Sus", atomic_read(&dwc->in_lpm));
 
-	dev_info(mdwc->dev, "%s: Calling suspend %d\n", __func__, __LINE__);
+	dev_dbg(mdwc->dev, "%s: Calling suspend %d\n", __func__, __LINE__);
 
 	mutex_lock(&mdwc->suspend_resume_mutex);
 	if (atomic_read(&dwc->in_lpm)) {
-		dev_info(mdwc->dev, "%s: Already suspended\n", __func__);
+		dev_dbg(mdwc->dev, "%s: Already suspended\n", __func__);
 		mutex_unlock(&mdwc->suspend_resume_mutex);
 		return 0;
 	}

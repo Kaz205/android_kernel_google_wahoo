@@ -972,7 +972,7 @@ int tas2557_enable(struct tas2557_priv *pTAS2557, bool bEnable)
 	struct TConfiguration *pConfiguration;
 	unsigned int nValue;
 
-	dev_info(pTAS2557->dev, "Enable: %d\n", bEnable);
+	dev_dbg(pTAS2557->dev, "Enable: %d\n", bEnable);
 
 	if ((pTAS2557->mpFirmware->mnPrograms == 0)
 		|| (pTAS2557->mpFirmware->mnConfigurations == 0)) {
