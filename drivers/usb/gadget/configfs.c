@@ -1263,7 +1263,7 @@ static void purge_configs_funcs(struct gadget_info *gi)
 
 			list_move(&f->list, &cfg->func_list);
 			if (f->unbind) {
-				dev_err(&gi->cdev.gadget->dev, "unbind function"
+				dev_dbg(&gi->cdev.gadget->dev, "unbind function"
 						" '%s'/%pK\n", f->name, f);
 				f->unbind(c, f);
 			}
@@ -1466,7 +1466,7 @@ static void android_work(struct work_struct *data)
 	}
 
 	if (!uevent_sent) {
-		pr_info("%s: did not send uevent (%d %d %pK)\n", __func__,
+		pr_debug("%s: did not send uevent (%d %d %pK)\n", __func__,
 			gi->connected, gi->sw_connected, cdev->config);
 	}
 }

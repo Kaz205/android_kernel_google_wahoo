@@ -304,7 +304,7 @@ int fts_systemreset(struct fts_ts_info *info)
 	unsigned char addr[4] = {0xB6, 0x00, 0x28, 0x80};
 	unsigned char addr_wbcrc[4] = {0xB6, 0x00, 0x1E, 0x20};
 
-	tsp_debug_info(&info->client->dev, "FTS Enable WBCRC\n");
+	tsp_debug_dbg(&info->client->dev, "FTS Enable WBCRC\n");
 	ret = fts_write_reg(info, &addr_wbcrc[0], 4);
 	fts_delay(10);
 
@@ -875,7 +875,7 @@ static int fts_init(struct fts_ts_info *info)
 static void fts_debug_msg_event_handler(struct fts_ts_info *info,
 				      unsigned char data[])
 {
-	tsp_debug_info(&info->client->dev,
+	tsp_debug_dbg(&info->client->dev,
 	       "%s: %02X %02X %02X %02X "
 	       "%02X %02X %02X %02X\n", __func__,
 	       data[0], data[1], data[2], data[3],
@@ -908,6 +908,7 @@ static void fts_error_event_handler(struct fts_ts_info *info,
 		fts_debug_msg_event_handler(info, data);
 }
 
+#ifdef DEBUG
 static void fts_status_event_handler(struct fts_ts_info *info,
 					unsigned char status,
 					unsigned char data[])
@@ -988,6 +989,11 @@ static void fts_status_event_handler(struct fts_ts_info *info,
 		fts_debug_msg_event_handler(info,
 				  data);
 }
+#else
+static void fts_status_event_handler(struct fts_ts_info *info,
+					unsigned char status,
+					unsigned char data[]){}
+#endif
 
 static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 					      unsigned char data[],
@@ -1101,14 +1107,14 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 #endif
 		case EVENTID_MOTION_POINTER:
 			if (info->fts_power_state == FTS_POWER_STATE_LOWPOWER) {
-				tsp_debug_info(&info->client->dev,
+				tsp_debug_dbg(&info->client->dev,
 						"%s: low power mode\n", __func__);
 				fts_release_all_finger(info);
 				break;
 			}
 
 			if (info->touch_count == 0) {
-				tsp_debug_info(&info->client->dev,
+				tsp_debug_dbg(&info->client->dev,
 						"%s: count 0\n", __func__);
 				fts_release_all_finger(info);
 				break;
@@ -1146,7 +1152,7 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 			orient = (s8)data[5 + EventNum * FTS_EVENT_SIZE];
 
 			if (z == 255) {
-				tsp_debug_info(&info->client->dev,
+				tsp_debug_dbg(&info->client->dev,
 						"%s: Palm Detected\n", __func__);
 				tsp_debug_event(&info->client->dev, "%s: "
 						"[ID:%2d  X:%4d  Y:%4d  Z:%4d "
@@ -1198,7 +1204,7 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 			}
 
 			if (info->touch_count <= 0) {
-				tsp_debug_info(&info->client->dev,
+				tsp_debug_dbg(&info->client->dev,
 						"%s: count 0\n", __func__);
 				fts_release_all_finger(info);
 				break;
@@ -2280,7 +2286,7 @@ static int fts_stop_device(struct fts_ts_info *info)
 	}
 
 	if (info->lowpower_mode) {
-		tsp_debug_info(&info->client->dev,
+		tsp_debug_dbg(&info->client->dev,
 					"%s lowpower flag:%d\n",
 					__func__, info->lowpower_flag);
 
@@ -2471,7 +2477,7 @@ static int fts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct fts_ts_info *info = i2c_get_clientdata(client);
 
-	tsp_debug_info(&info->client->dev, "%s power state : %d\n",
+	tsp_debug_dbg(&info->client->dev, "%s power state : %d\n",
 			__func__, info->fts_power_state);
 	/* if suspend is called from non-active state, the i2c bus is not
 	 * switched to AP, skipping suspend routine */
@@ -2485,7 +2491,7 @@ static int fts_suspend(struct i2c_client *client, pm_message_t mesg)
 	fts_stop_device(info);
 
 	gpio_set_value(info->switch_gpio, 1);
-	tsp_debug_info(&info->client->dev,
+	tsp_debug_dbg(&info->client->dev,
 			"%s: switch i2c to SLPI (set to %d)\n",
 			__func__,
 			gpio_get_value(info->switch_gpio));
@@ -2497,7 +2503,7 @@ static int fts_resume(struct i2c_client *client)
 {
 	struct fts_ts_info *info = i2c_get_clientdata(client);
 
-	tsp_debug_info(&info->client->dev, "%s power state : %d\n",
+	tsp_debug_dbg(&info->client->dev, "%s power state : %d\n",
 			__func__, info->fts_power_state);
 	/* if resume is called from active state, the i2c bus is not
 	 * switched to AP, skipping resume routine */
@@ -2509,7 +2515,7 @@ static int fts_resume(struct i2c_client *client)
 	}
 
 	gpio_set_value(info->switch_gpio, 0);
-	tsp_debug_info(&info->client->dev,
+	tsp_debug_dbg(&info->client->dev,
 			"%s: switch i2c to AP (set to %d)\n",
 			__func__,
 			gpio_get_value(info->switch_gpio));
