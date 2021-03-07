@@ -1,0 +1,91 @@
+From c66a37a1c63780a4a185d14b1bbaff409c3ce6fa Mon Sep 17 00:00:00 2001
+From: Kazuki Hashimoto <kaz205@tuta.io>
+Date: Sun, 7 Mar 2021 19:12:12 +0900
+Subject: [PATCH] Faster compilation
+
+Signed-off-by: Kazuki Hashimoto <kaz205@tuta.io>
+---
+ Makefile                           | 6 +++++-
+ arch/arm64/Makefile                | 3 ---
+ arch/arm64/configs/wahoo_defconfig | 3 ---
+ arch/arm64/crypto/Makefile         | 2 +-
+ drivers/staging/qcacld-3.0/Kbuild  | 1 -
+ 5 files changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index c3be311b15bc..672167293e20 100644
+--- a/Makefile
++++ b/Makefile
+@@ -675,7 +675,11 @@ endif
+ ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
+ KBUILD_CFLAGS	+= -Os
+ else
+-KBUILD_CFLAGS   += -O3
++ifdef CONFIG_PROFILE_ALL_BRANCHES
++KBUILD_CFLAGS	+= -O2
++else
++KBUILD_CFLAGS   += -O2
++endif
+ endif
+ 
+ ifdef CONFIG_CC_WERROR
+diff --git a/arch/arm64/Makefile b/arch/arm64/Makefile
+index 5fa2e295254b..0a4b5dba36f6 100644
+--- a/arch/arm64/Makefile
++++ b/arch/arm64/Makefile
+@@ -64,9 +64,6 @@ ifeq ($(cc-name),clang)
+ KBUILD_CFLAGS	+= -mno-implicit-float
+ else
+ KBUILD_CFLAGS	+= -mgeneral-regs-only
+-ifeq ($(CONFIG_ARCH_MSM8998), y)
+-KBUILD_CFLAGS	+= -mcpu=cortex-a73.cortex-a53
+-endif
+ endif
+ KBUILD_CFLAGS	+= $(lseinstr) $(vdso32)
+ KBUILD_CFLAGS	+= -fno-pic
+diff --git a/arch/arm64/configs/wahoo_defconfig b/arch/arm64/configs/wahoo_defconfig
+index b91510d68892..9e369dd70270 100644
+--- a/arch/arm64/configs/wahoo_defconfig
++++ b/arch/arm64/configs/wahoo_defconfig
+@@ -34,8 +34,6 @@ CONFIG_BLK_DEV_INITRD=y
+ # CONFIG_RD_XZ is not set
+ # CONFIG_RD_LZO is not set
+ # CONFIG_RD_LZ4 is not set
+-CONFIG_LTO=y
+-CONFIG_LD_DEAD_CODE_DATA_ELIMINATION=y
+ CONFIG_EMBEDDED=y
+ # CONFIG_SLUB_DEBUG is not set
+ # CONFIG_COMPAT_BRK is not set
+@@ -747,7 +745,6 @@ CONFIG_FTRACE=y
+ CONFIG_ENABLE_DEFAULT_TRACERS=y
+ # CONFIG_TRACING_EVENTS_GPIO is not set
+ CONFIG_PANIC_ON_DATA_CORRUPTION=y
+-CONFIG_CC_WERROR=y
+ CONFIG_DEBUG_ALIGN_RODATA=y
+ CONFIG_PFK=y
+ CONFIG_SECURITY_PERF_EVENTS_RESTRICT=y
+diff --git a/arch/arm64/crypto/Makefile b/arch/arm64/crypto/Makefile
+index e79553e34017..1071dfcdaf1b 100644
+--- a/arch/arm64/crypto/Makefile
++++ b/arch/arm64/crypto/Makefile
+@@ -39,7 +39,7 @@ CFLAGS_aes-glue-ce.o	:= -DUSE_V8_CRYPTO_EXTENSIONS
+ 
+ obj-$(CONFIG_CRYPTO_CRC32_ARM64) += crc32-arm64.o
+ 
+-CFLAGS_crc32-arm64.o	:= -mcpu=generic+crc $(filter -mcpu=%, $(KBUILD_CFLAGS))
++CFLAGS_crc32-arm64.o	:= -mcpu=generic+crc
+ 
+ $(obj)/aes-glue-%.o: $(src)/aes-glue.c FORCE
+ 	$(call if_changed_rule,cc_o_c)
+diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
+index 0d69b33271c5..5193dd587244 100644
+--- a/drivers/staging/qcacld-3.0/Kbuild
++++ b/drivers/staging/qcacld-3.0/Kbuild
+@@ -1248,7 +1248,6 @@ CDEFINES :=	-DANI_LITTLE_BYTE_ENDIAN \
+ 		-DANI_OS_TYPE_ANDROID=6 \
+ 		-DPTT_SOCK_SVC_ENABLE \
+ 		-Wall\
+-		-Werror\
+ 		-D__linux__ \
+ 		-DHAL_SELF_STA_PER_BSS=1 \
+ 		-DFEATURE_WLAN_WAPI \
