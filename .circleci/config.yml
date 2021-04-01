@@ -1,0 +1,28 @@
+version: 2.1
+jobs:
+  compile:
+   machine:
+     image: ubuntu-2004:202010-01
+   steps:
+      - run:
+          command: |
+           sudo apt update && sudo apt install git flex gcc-10 glibc-source -y
+           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100000
+           cd;
+           git clone https://github.com/Kaz205/android_kernel_google_wahoo -b 11.0.0-sultan --depth=1 -j$(nproc --all)
+           git clone https://github.com/Kaz205/arm-none-eabi-gcc -b ubuntu --depth=1 -j$(nproc --all)
+           git clone https://github.com/Kaz205/aarch64-linux-gnu-gcc -b ubuntu --depth=1 -j$(nproc --all)
+           git clone https://github.com/Kaz205/AnyKernel3 --depth=1 -j$(nproc --all)
+           cd android_kernel_google_wahoo
+           ./build_kernel.sh
+           mkdir ~/out
+           cp ~/AnyKernel3/kernel.zip ~/out/kernel.zip
+          no_output_timeout: 10h
+
+      - store_artifacts:
+          path: ~/out
+workflows:
+  version: 2.1
+  cooking:
+    jobs:
+      - compile
