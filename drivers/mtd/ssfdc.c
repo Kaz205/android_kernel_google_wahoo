@@ -35,8 +35,6 @@ struct ssfdcr_record {
 #define SSFDCR_MAJOR		257
 #define SSFDCR_PARTN_BITS	3
 
-#define SECTOR_SIZE		512
-#define SECTOR_SHIFT		9
 #define OOB_SIZE		16
 
 #define MAX_LOGIC_BLK_PER_ZONE	1000

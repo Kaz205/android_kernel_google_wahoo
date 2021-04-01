@@ -119,7 +119,9 @@ module_param(doc_config_location, ulong, 0);
 MODULE_PARM_DESC(doc_config_location, "Physical memory address at which to probe for DiskOnChip");
 
 /* Sector size for HW ECC */
+#ifndef SECTOR_SIZE
 #define SECTOR_SIZE 512
+#endif
 /* The sector bytes are packed into NB_DATA 10 bit words */
 #define NB_DATA (((SECTOR_SIZE + 1) * 8 + 6) / 10)
 /* Number of roots */

@@ -38,7 +38,9 @@
 #define DMB_COEFF_ADDRESS		0x21
 #define BLOCK_UNIT				0x200
 #define BLOCK_BYTE				2560
+#ifndef SECTOR_SIZE
 #define SECTOR_SIZE				320
+#endif
 #define HALF_SECTOR_ADD_UNIT	0x20
 #define FLASH_ACCESS_SIZE		32
 #define	USER_AREA_START			(BLOCK_UNIT * ERASE_BLOCKS)

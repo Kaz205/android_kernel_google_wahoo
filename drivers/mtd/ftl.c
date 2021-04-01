@@ -102,9 +102,6 @@ module_param(shuffle_freq, int, 0);
 /* Maximum number of outstanding erase requests per socket */
 #define MAX_ERASE	8
 
-/* Sector size -- shouldn't need to change */
-#define SECTOR_SIZE	512
-
 
 /* Each memory region corresponds to a minor device */
 typedef struct partition_t {

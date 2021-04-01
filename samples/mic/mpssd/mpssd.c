@@ -990,7 +990,6 @@ set_backend_file(struct mic_info *mic)
 	return true;
 }
 
-#define SECTOR_SIZE 512
 static bool
 set_backend_size(struct mic_info *mic)
 {

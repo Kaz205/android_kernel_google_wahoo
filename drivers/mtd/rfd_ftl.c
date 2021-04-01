@@ -49,8 +49,6 @@ MODULE_PARM_DESC(block_size, "Block size to use by RFD, defaults to erase unit s
 #define SECTOR_ZERO		0xfffe
 #define SECTOR_FREE		0xffff
 
-#define SECTOR_SIZE		512
-
 #define SECTORS_PER_TRACK	63
 
 struct block {
