@@ -146,6 +146,7 @@ static void mpage_end_io(struct bio *bio)
 	bio_put(bio);
 }
 
+#ifdef DEBUG
 static void
 ext4_submit_bio_read(struct bio *bio)
 {
@@ -169,6 +170,12 @@ ext4_submit_bio_read(struct bio *bio)
 	}
 	submit_bio(READ, bio);
 }
+#else
+static void ext4_submit_bio_read(struct bio *bio)
+{
+	submit_bio(READ, bio);
+}
+#endif
 
 int ext4_mpage_readpages(struct address_space *mapping,
 			 struct list_head *pages, struct page *page,
