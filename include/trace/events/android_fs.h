@@ -1,5 +1,10 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM android_fs
+#define NOTRACE
+
+#if defined(NOTRACE)
+#define NOFSTRACE
+#endif
 
 #if !defined(_TRACE_ANDROID_FS_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_ANDROID_FS_H
@@ -36,6 +41,7 @@ DEFINE_EVENT(android_fs_data_end_template, android_fs_datawrite_end,
 /* Sizes an on-stack array, so careful if sizing this up ! */
 #define MAX_TRACE_PATHBUF_LEN	256
 
+#if !defined(NOFSTRACE)
 static inline char *
 android_fstrace_get_pathname(char *buf, int buflen, struct inode *inode)
 {
@@ -62,4 +68,11 @@ android_fstrace_get_pathname(char *buf, int buflen, struct inode *inode)
 	}
 	return path;
 }
+#else
+static inline char *
+android_fstrace_get_pathname(char *buf, int buflen, struct inode *inode) {
+	return NULL;
+}
+#endif
+
 #endif
