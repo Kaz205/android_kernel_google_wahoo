@@ -653,6 +653,21 @@ void pm_qos_update_request_special(struct pm_qos_request *req,
 }
 EXPORT_SYMBOL_GPL(pm_qos_update_request_special);
 
+void pm_qos_update_request_normal(struct pm_qos_request *req,
+			   s32 new_value)
+{
+	if (!req) /*guard against callers passing in null */
+		return;
+
+	if (!pm_qos_request_active(req)) {
+		WARN(1, KERN_ERR "pm_qos_update_request() called for unknown object\n");
+		return;
+	}
+
+	__pm_qos_update_request(req, new_value);
+}
+EXPORT_SYMBOL_GPL(pm_qos_update_request_normal);
+
 /**
  * pm_qos_remove_request - modifies an existing qos request
  * @req: handle to request list element

@@ -143,7 +143,10 @@ void pm_qos_add_request_special(struct pm_qos_request *req, int pm_qos_class,
 void pm_qos_update_request_special(struct pm_qos_request *req,
 			   s32 new_value, const char* str);
 #define pm_qos_update_request(req, value) pm_qos_update_request_special(req, value, __func__)
+void pm_qos_update_request_normal(struct pm_qos_request *req,
+			   s32 new_value);
 void pm_qos_remove_request(struct pm_qos_request *req);
+
 
 int pm_qos_request(int pm_qos_class);
 int pm_qos_request_for_cpu(int pm_qos_class, int cpu);
