@@ -3065,7 +3065,7 @@ static void ufshcd_pm_qos_get_worker(struct work_struct *work)
 
 	mutex_lock(&hba->pm_qos.lock);
 	if (atomic_read(&hba->pm_qos.count) && !hba->pm_qos.active) {
-		pm_qos_update_request_normal(&hba->pm_qos.req, 100);
+		pm_qos_update_request(&hba->pm_qos.req, 100);
 		hba->pm_qos.active = true;
 	}
 	mutex_unlock(&hba->pm_qos.lock);
@@ -3080,7 +3080,7 @@ static void ufshcd_pm_qos_put_worker(struct work_struct *work)
 
 	mutex_lock(&hba->pm_qos.lock);
 	if (!atomic_read(&hba->pm_qos.count) && hba->pm_qos.active) {
-		pm_qos_update_request_normal(&hba->pm_qos.req, PM_QOS_DEFAULT_VALUE);
+		pm_qos_update_request(&hba->pm_qos.req, PM_QOS_DEFAULT_VALUE);
 		hba->pm_qos.active = false;
 	}
 	mutex_unlock(&hba->pm_qos.lock);
