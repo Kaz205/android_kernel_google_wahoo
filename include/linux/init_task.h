@@ -186,9 +186,7 @@ extern struct task_group root_task_group;
 #endif
 
 #ifdef CONFIG_THREAD_INFO_IN_TASK
-# define INIT_TASK_TI(tsk)			\
-	.thread_info = INIT_THREAD_INFO(tsk),	\
-	.stack_refcount = ATOMIC_INIT(1),
+# define INIT_TASK_TI(tsk) .thread_info = INIT_THREAD_INFO(tsk),
 #else
 # define INIT_TASK_TI(tsk)
 #endif
