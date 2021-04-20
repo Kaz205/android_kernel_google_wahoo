@@ -150,7 +150,8 @@ static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 	alloc_nid_done(sbi, ino);
 
-	d_instantiate_new(dentry, inode);
+	d_instantiate(dentry, inode);
+	unlock_new_inode(inode);
 
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
@@ -169,7 +170,7 @@ static int f2fs_link(struct dentry *old_dentry, struct inode *dir,
 
 	if (f2fs_encrypted_inode(dir) &&
 		!f2fs_is_child_context_consistent_with_parent(dir, inode))
-		return -EXDEV;
+		return -EPERM;
 
 	f2fs_balance_fs(sbi);
 
@@ -350,7 +351,6 @@ static int f2fs_symlink(struct inode *dir, struct dentry *dentry,
 		inode->i_op = &f2fs_encrypted_symlink_inode_operations;
 	else
 		inode->i_op = &f2fs_symlink_inode_operations;
-	inode_nohighmem(inode);
 	inode->i_mapping->a_ops = &f2fs_dblock_aops;
 
 	f2fs_lock_op(sbi);
@@ -398,7 +398,8 @@ static int f2fs_symlink(struct inode *dir, struct dentry *dentry,
 	err = page_symlink(inode, p_str, p_len);
 
 err_out:
-	d_instantiate_new(dentry, inode);
+	d_instantiate(dentry, inode);
+	unlock_new_inode(inode);
 
 	/*
 	 * Let's flush symlink data in order to avoid broken symlink as much as
@@ -452,7 +453,8 @@ static int f2fs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 	alloc_nid_done(sbi, inode->i_ino);
 
-	d_instantiate_new(dentry, inode);
+	d_instantiate(dentry, inode);
+	unlock_new_inode(inode);
 
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
@@ -496,7 +498,8 @@ static int f2fs_mknod(struct inode *dir, struct dentry *dentry,
 
 	alloc_nid_done(sbi, inode->i_ino);
 
-	d_instantiate_new(dentry, inode);
+	d_instantiate(dentry, inode);
+	unlock_new_inode(inode);
 
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
@@ -597,7 +600,7 @@ static int f2fs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	if ((old_dir != new_dir) && f2fs_encrypted_inode(new_dir) &&
 		!f2fs_is_child_context_consistent_with_parent(new_dir,
 							old_inode)) {
-		err = -EXDEV;
+		err = -EPERM;
 		goto out;
 	}
 
@@ -758,7 +761,7 @@ static int f2fs_cross_rename(struct inode *old_dir, struct dentry *old_dentry,
 								old_inode) ||
 		!f2fs_is_child_context_consistent_with_parent(old_dir,
 								new_inode)))
-		return -EXDEV;
+		return -EPERM;
 
 	f2fs_balance_fs(sbi);
 
@@ -939,7 +942,7 @@ static const char *f2fs_encrypted_follow_link(struct dentry *dentry, void **cook
 	cpage = read_mapping_page(inode->i_mapping, 0, NULL);
 	if (IS_ERR(cpage))
 		return ERR_CAST(cpage);
-	caddr = page_address(cpage);
+	caddr = kmap(cpage);
 	caddr[size] = 0;
 
 	/* Symlink is encrypted */
@@ -979,11 +982,13 @@ static const char *f2fs_encrypted_follow_link(struct dentry *dentry, void **cook
 	/* Null-terminate the name */
 	paddr[res] = '\0';
 
+	kunmap(cpage);
 	page_cache_release(cpage);
 	return *cookie = paddr;
 errout:
 	kfree(cstr.name);
 	f2fs_fname_crypto_free_buffer(&pstr);
+	kunmap(cpage);
 	page_cache_release(cpage);
 	return ERR_PTR(res);
 }
