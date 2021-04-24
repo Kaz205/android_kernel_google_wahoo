@@ -462,11 +462,6 @@ static u64 zs_zpool_total_size(void *pool)
 	return zs_get_total_pages(pool) << PAGE_SHIFT;
 }
 
-static size_t zs_zpool_huge_class_size(void *pool)
-{
-	return zs_huge_class_size(pool);
-}
-
 static struct zpool_driver zs_zpool_driver = {
 	.type =		"zsmalloc",
 	.owner =	THIS_MODULE,
@@ -480,7 +475,6 @@ static struct zpool_driver zs_zpool_driver = {
 	.compact =	zs_zpool_compact,
 	.get_num_compacted =	zs_zpool_get_compacted,
 	.total_size =	zs_zpool_total_size,
-	.huge_class_size =	zs_zpool_huge_class_size,
 };
 
 MODULE_ALIAS("zpool-zsmalloc");
