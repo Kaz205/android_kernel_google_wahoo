@@ -1973,7 +1973,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	pm_qos_add_request(&info->pm_touch_req, PM_QOS_CPU_DMA_LATENCY,
 			   PM_QOS_DEFAULT_VALUE);
 
-	info->board->irq_type |= IRQF_PERF_CRITICAL;
 	retval = request_threaded_irq(info->irq, fts_hard_interrupt_handler,
 			fts_interrupt_handler, info->board->irq_type,
 			FTS_TS_DRV_NAME, info);
