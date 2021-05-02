@@ -1038,8 +1038,6 @@ static int adreno_probe(struct platform_device *pdev)
 	}
 #endif
 
-	place_marker("M - DRIVER GPU Ready");
-
 out:
 	if (status) {
 		adreno_ringbuffer_close(adreno_dev);
