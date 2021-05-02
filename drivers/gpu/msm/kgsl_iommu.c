@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,9 +39,10 @@
 
 #define _IOMMU_PRIV(_mmu) (&((_mmu)->priv.iommu))
 
-#define ADDR_IN_GLOBAL(_a) \
-	(((_a) >= KGSL_IOMMU_GLOBAL_MEM_BASE) && \
-	 ((_a) < (KGSL_IOMMU_GLOBAL_MEM_BASE + KGSL_IOMMU_GLOBAL_MEM_SIZE)))
+#define ADDR_IN_GLOBAL(_mmu, _a) \
+	(((_a) >= KGSL_IOMMU_GLOBAL_MEM_BASE(_mmu)) && \
+	 ((_a) < (KGSL_IOMMU_GLOBAL_MEM_BASE(_mmu) + \
+	 KGSL_IOMMU_GLOBAL_MEM_SIZE)))
 
 static struct kgsl_mmu_pt_ops iommu_pt_ops;
 static bool need_iommu_sync;
@@ -114,9 +115,11 @@ void kgsl_print_global_pt_entries(struct seq_file *s)
 		if (memdesc == NULL)
 			continue;
 
-		seq_printf(s, "0x%16.16llX-0x%16.16llX %16llu %s\n",
-			memdesc->gpuaddr, memdesc->gpuaddr + memdesc->size - 1,
-			memdesc->size, global_pt_entries[i].name);
+		seq_printf(s, "0x%pK-0x%pK %16llu %s\n",
+			(uint64_t *)(uintptr_t) memdesc->gpuaddr,
+			(uint64_t *)(uintptr_t) (memdesc->gpuaddr +
+			memdesc->size - 1), memdesc->size,
+			global_pt_entries[i].name);
 	}
 }
 
@@ -180,7 +183,7 @@ static void kgsl_iommu_remove_global(struct kgsl_mmu *mmu,
 	for (i = 0; i < global_pt_count; i++) {
 		if (global_pt_entries[i].memdesc == memdesc) {
 			u64 offset = memdesc->gpuaddr -
-				KGSL_IOMMU_GLOBAL_MEM_BASE;
+				KGSL_IOMMU_GLOBAL_MEM_BASE(mmu);
 
 			bitmap_clear(global_map, offset >> PAGE_SHIFT,
 				kgsl_memdesc_footprint(memdesc) >> PAGE_SHIFT);
@@ -196,8 +199,9 @@ static void kgsl_iommu_remove_global(struct kgsl_mmu *mmu,
 static void kgsl_iommu_add_global(struct kgsl_mmu *mmu,
 		struct kgsl_memdesc *memdesc, const char *name)
 {
-	u32 bit, start = 0;
+	u32 bit;
 	u64 size = kgsl_memdesc_footprint(memdesc);
+	int start = 0;
 
 	if (memdesc->gpuaddr != 0)
 		return;
@@ -228,7 +232,7 @@ static void kgsl_iommu_add_global(struct kgsl_mmu *mmu,
 		return;
 
 	memdesc->gpuaddr =
-		KGSL_IOMMU_GLOBAL_MEM_BASE + (bit << PAGE_SHIFT);
+		KGSL_IOMMU_GLOBAL_MEM_BASE(mmu) + (bit << PAGE_SHIFT);
 
 	bitmap_set(global_map, bit, size >> PAGE_SHIFT);
 
@@ -243,7 +247,7 @@ static void kgsl_iommu_add_global(struct kgsl_mmu *mmu,
 void kgsl_add_global_secure_entry(struct kgsl_device *device,
 					struct kgsl_memdesc *memdesc)
 {
-	memdesc->gpuaddr = KGSL_IOMMU_SECURE_BASE;
+	memdesc->gpuaddr = KGSL_IOMMU_SECURE_BASE(&device->mmu);
 	kgsl_global_secure_pt_entry = memdesc;
 }
 
@@ -267,6 +271,7 @@ static void kgsl_setup_qdss_desc(struct kgsl_device *device)
 		return;
 	}
 
+	spin_lock_init(&gpu_qdss_desc.lock);
 	gpu_qdss_desc.flags = 0;
 	gpu_qdss_desc.priv = 0;
 	gpu_qdss_desc.physaddr = gpu_qdss_entry[0];
@@ -312,6 +317,7 @@ static void kgsl_setup_qtimer_desc(struct kgsl_device *device)
 		return;
 	}
 
+	spin_lock_init(&gpu_qtimer_desc.lock);
 	gpu_qtimer_desc.flags = 0;
 	gpu_qtimer_desc.priv = 0;
 	gpu_qtimer_desc.physaddr = gpu_qtimer_entry[0];
@@ -689,7 +695,7 @@ static void _get_entries(struct kgsl_process_private *private,
 		prev->flags = p->memdesc.flags;
 		prev->priv = p->memdesc.priv;
 		prev->pending_free = p->pending_free;
-		prev->pid = private->pid;
+		prev->pid = pid_nr(private->pid);
 		__kgsl_get_memory_usage(prev);
 	}
 
@@ -699,7 +705,7 @@ static void _get_entries(struct kgsl_process_private *private,
 		next->flags = n->memdesc.flags;
 		next->priv = n->memdesc.priv;
 		next->pending_free = n->pending_free;
-		next->pid = private->pid;
+		next->pid = pid_nr(private->pid);
 		__kgsl_get_memory_usage(next);
 	}
 }
@@ -716,7 +722,7 @@ static void _find_mem_entries(struct kgsl_mmu *mmu, uint64_t faultaddr,
 	/* Set the maximum possible size as an initial value */
 	nextentry->gpuaddr = (uint64_t) -1;
 
-	if (ADDR_IN_GLOBAL(faultaddr)) {
+	if (ADDR_IN_GLOBAL(mmu, faultaddr)) {
 		_get_global_entries(faultaddr, preventry, nextentry);
 	} else if (context) {
 		private = context->proc_priv;
@@ -897,11 +903,21 @@ static int kgsl_iommu_fault_handler(struct iommu_domain *domain,
 		no_page_fault_log = kgsl_mmu_log_fault_addr(mmu, ptbase, addr);
 
 	if (!no_page_fault_log && __ratelimit(&_rs)) {
+		const char *api_str;
+
+		if (context != NULL) {
+			struct adreno_context *drawctxt =
+					ADRENO_CONTEXT(context);
+
+			api_str = get_api_type_str(drawctxt->type);
+		} else
+			api_str = "UNKNOWN";
+
 		KGSL_MEM_CRIT(ctx->kgsldev,
 			"GPU PAGE FAULT: addr = %lX pid= %d\n", addr, ptname);
 		KGSL_MEM_CRIT(ctx->kgsldev,
-			"context=%s TTBR0=0x%llx CIDR=0x%x (%s %s fault)\n",
-			ctx->name, ptbase, contextidr,
+			"context=%s ctx_type=%s TTBR0=0x%llx CIDR=0x%x (%s %s fault)\n",
+			ctx->name, api_str, ptbase, contextidr,
 			write ? "write" : "read", fault_type);
 
 		/* Don't print the debug if this is a permissions fault */
@@ -1086,14 +1102,14 @@ static void setup_64bit_pagetable(struct kgsl_mmu *mmu,
 	unsigned int secure_global_size = kgsl_global_secure_pt_entry != NULL ?
 					kgsl_global_secure_pt_entry->size : 0;
 	if (mmu->secured && pagetable->name == KGSL_MMU_SECURE_PT) {
-		pt->compat_va_start = KGSL_IOMMU_SECURE_BASE +
+		pt->compat_va_start = KGSL_IOMMU_SECURE_BASE(mmu) +
 						secure_global_size;
-		pt->compat_va_end = KGSL_IOMMU_SECURE_END;
-		pt->va_start = KGSL_IOMMU_SECURE_BASE + secure_global_size;
-		pt->va_end = KGSL_IOMMU_SECURE_END;
+		pt->compat_va_end = KGSL_IOMMU_SECURE_END(mmu);
+		pt->va_start = KGSL_IOMMU_SECURE_BASE(mmu) + secure_global_size;
+		pt->va_end = KGSL_IOMMU_SECURE_END(mmu);
 	} else {
 		pt->compat_va_start = KGSL_IOMMU_SVM_BASE32;
-		pt->compat_va_end = KGSL_IOMMU_SVM_END32;
+		pt->compat_va_end = KGSL_IOMMU_SECURE_BASE(mmu);
 		pt->va_start = KGSL_IOMMU_VA_BASE64;
 		pt->va_end = KGSL_IOMMU_VA_END64;
 	}
@@ -1102,7 +1118,7 @@ static void setup_64bit_pagetable(struct kgsl_mmu *mmu,
 		pagetable->name != KGSL_MMU_SECURE_PT) {
 		if ((BITS_PER_LONG == 32) || is_compat_task()) {
 			pt->svm_start = KGSL_IOMMU_SVM_BASE32;
-			pt->svm_end = KGSL_IOMMU_SVM_END32;
+			pt->svm_end = KGSL_IOMMU_SECURE_BASE(mmu);
 		} else {
 			pt->svm_start = KGSL_IOMMU_SVM_BASE64;
 			pt->svm_end = KGSL_IOMMU_SVM_END64;
@@ -1118,22 +1134,22 @@ static void setup_32bit_pagetable(struct kgsl_mmu *mmu,
 					kgsl_global_secure_pt_entry->size : 0;
 	if (mmu->secured) {
 		if (pagetable->name == KGSL_MMU_SECURE_PT) {
-			pt->compat_va_start = KGSL_IOMMU_SECURE_BASE +
+			pt->compat_va_start = KGSL_IOMMU_SECURE_BASE(mmu) +
 						secure_global_size;
-			pt->compat_va_end = KGSL_IOMMU_SECURE_END;
-			pt->va_start = KGSL_IOMMU_SECURE_BASE +
+			pt->compat_va_end = KGSL_IOMMU_SECURE_END(mmu);
+			pt->va_start = KGSL_IOMMU_SECURE_BASE(mmu) +
 						secure_global_size;
-			pt->va_end = KGSL_IOMMU_SECURE_END;
+			pt->va_end = KGSL_IOMMU_SECURE_END(mmu);
 		} else {
 			pt->va_start = KGSL_IOMMU_SVM_BASE32;
-			pt->va_end = KGSL_IOMMU_SECURE_BASE +
+			pt->va_end = KGSL_IOMMU_SECURE_BASE(mmu) +
 						secure_global_size;
 			pt->compat_va_start = pt->va_start;
 			pt->compat_va_end = pt->va_end;
 		}
 	} else {
 		pt->va_start = KGSL_IOMMU_SVM_BASE32;
-		pt->va_end = KGSL_IOMMU_GLOBAL_MEM_BASE;
+		pt->va_end = KGSL_IOMMU_GLOBAL_MEM_BASE(mmu);
 		pt->compat_va_start = pt->va_start;
 		pt->compat_va_end = pt->va_end;
 	}
@@ -1486,6 +1502,7 @@ static int _setstate_alloc(struct kgsl_device *device,
 {
 	int ret;
 
+	spin_lock_init(&iommu->setstate.lock);
 	ret = kgsl_sharedmem_alloc_contig(device, &iommu->setstate, PAGE_SIZE);
 
 	if (!ret) {
@@ -1577,6 +1594,8 @@ static int _setup_user_context(struct kgsl_mmu *mmu)
 			ret = PTR_ERR(mmu->defaultpagetable);
 			mmu->defaultpagetable = NULL;
 			return ret;
+		} else if (mmu->defaultpagetable == NULL) {
+			return -ENOMEM;
 		}
 	}
 
@@ -2374,6 +2393,22 @@ static uint64_t kgsl_iommu_find_svm_region(struct kgsl_pagetable *pagetable,
 	return addr;
 }
 
+static bool iommu_addr_in_svm_ranges(struct kgsl_iommu_pt *pt,
+	u64 gpuaddr, u64 size)
+{
+	if ((gpuaddr >= pt->compat_va_start && gpuaddr < pt->compat_va_end) &&
+		((gpuaddr + size) > pt->compat_va_start &&
+			(gpuaddr + size) <= pt->compat_va_end))
+		return true;
+
+	if ((gpuaddr >= pt->svm_start && gpuaddr < pt->svm_end) &&
+		((gpuaddr + size) > pt->svm_start &&
+			(gpuaddr + size) <= pt->svm_end))
+		return true;
+
+	return false;
+}
+
 static int kgsl_iommu_set_svm_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size)
 {
@@ -2381,8 +2416,8 @@ static int kgsl_iommu_set_svm_region(struct kgsl_pagetable *pagetable,
 	struct kgsl_iommu_pt *pt = pagetable->priv;
 	struct rb_node *node;
 
-	/* Make sure the requested address doesn't fall in the global range */
-	if (ADDR_IN_GLOBAL(gpuaddr) || ADDR_IN_GLOBAL(gpuaddr + size))
+	/* Make sure the requested address doesn't fall out of SVM range */
+	if (!iommu_addr_in_svm_ranges(pt, gpuaddr, size))
 		return -ENOMEM;
 
 	spin_lock(&pagetable->lock);
@@ -2446,6 +2481,11 @@ static int kgsl_iommu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 		goto out;
 	}
 
+	/*
+	 * This path is only called in a non-SVM path with locks so we can be
+	 * sure we aren't racing with anybody so we don't need to worry about
+	 * taking the lock
+	 */
 	ret = _insert_gpuaddr(pagetable, addr, size);
 	if (ret == 0) {
 		memdesc->gpuaddr = addr;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2017,2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2018,2020 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -170,6 +170,7 @@ enum adreno_gpurev {
 	ADRENO_REV_A505 = 505,
 	ADRENO_REV_A506 = 506,
 	ADRENO_REV_A508 = 508,
+	ADRENO_REV_A509 = 509,
 	ADRENO_REV_A510 = 510,
 	ADRENO_REV_A512 = 512,
 	ADRENO_REV_A530 = 530,
@@ -184,6 +185,7 @@ enum adreno_gpurev {
 #define ADRENO_TIMEOUT_FAULT BIT(2)
 #define ADRENO_IOMMU_PAGE_FAULT BIT(3)
 #define ADRENO_PREEMPT_FAULT BIT(4)
+#define ADRENO_CTX_DETATCH_TIMEOUT_FAULT BIT(5)
 
 #define ADRENO_SPTP_PC_CTRL 0
 #define ADRENO_PPD_CTRL     1
@@ -568,6 +570,8 @@ enum adreno_regs {
 	ADRENO_REG_RBBM_RBBM_CTL,
 	ADRENO_REG_UCHE_INVALIDATE0,
 	ADRENO_REG_UCHE_INVALIDATE1,
+	ADRENO_REG_RBBM_PERFCTR_RBBM_0_LO,
+	ADRENO_REG_RBBM_PERFCTR_RBBM_0_HI,
 	ADRENO_REG_RBBM_PERFCTR_LOAD_VALUE_LO,
 	ADRENO_REG_RBBM_PERFCTR_LOAD_VALUE_HI,
 	ADRENO_REG_RBBM_SECVID_TRUST_CONTROL,
@@ -790,6 +794,7 @@ struct adreno_gpudev {
 	void (*enable_64bit)(struct adreno_device *);
 	void (*clk_set_options)(struct adreno_device *,
 				const char *, struct clk *, bool on);
+	void (*zap_shader_unload)(struct adreno_device *);
 };
 
 /**
@@ -1006,6 +1011,7 @@ static inline int adreno_is_a5xx(struct adreno_device *adreno_dev)
 ADRENO_TARGET(a505, ADRENO_REV_A505)
 ADRENO_TARGET(a506, ADRENO_REV_A506)
 ADRENO_TARGET(a508, ADRENO_REV_A508)
+ADRENO_TARGET(a509, ADRENO_REV_A509)
 ADRENO_TARGET(a510, ADRENO_REV_A510)
 ADRENO_TARGET(a512, ADRENO_REV_A512)
 ADRENO_TARGET(a530, ADRENO_REV_A530)
@@ -1510,21 +1516,60 @@ static inline void adreno_ringbuffer_set_pagetable(struct adreno_ringbuffer *rb,
 	spin_unlock_irqrestore(&rb->preempt_lock, flags);
 }
 
+static inline bool is_power_counter_overflow(struct adreno_device *adreno_dev,
+	unsigned int reg, unsigned int prev_val, unsigned int *perfctr_pwr_hi)
+{
+	unsigned int val;
+	bool ret = false;
+
+	/*
+	 * If prev_val is zero, it is first read after perf counter reset.
+	 * So set perfctr_pwr_hi register to zero.
+	 */
+	if (prev_val == 0) {
+		*perfctr_pwr_hi = 0;
+		return ret;
+	}
+	adreno_readreg(adreno_dev, ADRENO_REG_RBBM_PERFCTR_RBBM_0_HI, &val);
+	if (val != *perfctr_pwr_hi) {
+		*perfctr_pwr_hi = val;
+		ret = true;
+	}
+	return ret;
+}
+
 static inline unsigned int counter_delta(struct kgsl_device *device,
 			unsigned int reg, unsigned int *counter)
 {
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	unsigned int val;
 	unsigned int ret = 0;
+	bool overflow = true;
+	static unsigned int perfctr_pwr_hi;
 
 	/* Read the value */
 	kgsl_regread(device, reg, &val);
 
+	if (adreno_is_a5xx(adreno_dev) && reg == adreno_getreg
+		(adreno_dev, ADRENO_REG_RBBM_PERFCTR_RBBM_0_LO))
+		overflow = is_power_counter_overflow(adreno_dev, reg,
+				*counter, &perfctr_pwr_hi);
+
 	/* Return 0 for the first read */
 	if (*counter != 0) {
-		if (val < *counter)
-			ret = (0xFFFFFFFF - *counter) + val;
-		else
+		if (val >= *counter) {
 			ret = val - *counter;
+		} else if (overflow == true) {
+			ret = (0xFFFFFFFF - *counter) + val;
+		} else {
+			/*
+			 * Since KGSL got abnormal value from the counter,
+			 * We will drop the value from being accumulated.
+			 */
+			pr_warn_once("KGSL: Abnormal value :0x%x (0x%x) from perf counter : 0x%x\n",
+					val, *counter, reg);
+			return 0;
+		}
 	}
 
 	*counter = val;

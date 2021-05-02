@@ -125,22 +125,6 @@ static int kgsl_pool_size_total(void)
 	return total;
 }
 
-static struct page *kgsl_alloc_pages(gfp_t gfp_mask, int order)
-{
-	struct page *page = alloc_pages(gfp_mask, order);
-
-	if (page)
-		mod_zone_page_state(page_zone(page), NR_GPU_HEAP, 1 << order);
-
-	return page;
-}
-
-static void kgsl_free_pages(struct page *page, int order)
-{
-	mod_zone_page_state(page_zone(page), NR_GPU_HEAP, -(1 << order));
-	__free_pages(page, order);
-}
-
 /*
  * This will shrink the specified pool by num_pages or its pool_size,
  * whichever is smaller.
@@ -158,7 +142,7 @@ _kgsl_pool_shrink(struct kgsl_page_pool *pool, int num_pages)
 		struct page *page = _kgsl_pool_get_page(pool);
 
 		if (page != NULL) {
-			kgsl_free_pages(page, pool->pool_order);
+			__free_pages(page, pool->pool_order);
 			pcount += (1 << pool->pool_order);
 		} else {
 			/* Break as this pool is empty */
@@ -289,6 +273,17 @@ static int kgsl_pool_idx_lookup(unsigned int order)
 	return -ENOMEM;
 }
 
+static int kgsl_pool_get_retry_order(unsigned int order)
+{
+	int i;
+
+	for (i = kgsl_num_pools-1; i > 0; i--)
+		if (order >= kgsl_pools[i].pool_order)
+			return kgsl_pools[i].pool_order;
+
+	return 0;
+}
+
 /**
  * kgsl_pool_alloc_page() - Allocate a page of requested size
  * @page_size: Size of the page to be allocated
@@ -315,7 +310,9 @@ int kgsl_pool_alloc_page(int *page_size, struct page **pages,
 
 	/* If the pool is not configured get pages from the system */
 	if (!kgsl_num_pools) {
-		page = kgsl_alloc_pages(kgsl_gfp_mask(order), order);
+		gfp_t gfp_mask = kgsl_gfp_mask(order);
+
+		page = alloc_pages(gfp_mask, order);
 		if (page == NULL) {
 			/* Retry with lower order pages */
 			if (order > 0) {
@@ -332,14 +329,16 @@ int kgsl_pool_alloc_page(int *page_size, struct page **pages,
 	if (pool == NULL) {
 		/* Retry with lower order pages */
 		if (order > 0) {
-			size = PAGE_SIZE << --order;
+			size = PAGE_SIZE << kgsl_pool_get_retry_order(order);
 			goto eagain;
 		} else {
 			/*
 			 * Fall back to direct allocation in case
 			 * pool with zero order is not present
 			 */
-			page = kgsl_alloc_pages(kgsl_gfp_mask(order), order);
+			gfp_t gfp_mask = kgsl_gfp_mask(order);
+
+			page = alloc_pages(gfp_mask, order);
 			if (page == NULL)
 				return -ENOMEM;
 			goto done;
@@ -351,6 +350,8 @@ int kgsl_pool_alloc_page(int *page_size, struct page **pages,
 
 	/* Allocate a new page if not allocated from pool */
 	if (page == NULL) {
+		gfp_t gfp_mask = kgsl_gfp_mask(order);
+
 		/* Only allocate non-reserved memory for certain pools */
 		if (!pool->allocation_allowed && pool_idx > 0) {
 			size = PAGE_SIZE <<
@@ -358,7 +359,8 @@ int kgsl_pool_alloc_page(int *page_size, struct page **pages,
 			goto eagain;
 		}
 
-		page = kgsl_alloc_pages(kgsl_gfp_mask(order), order);
+		page = alloc_pages(gfp_mask, order);
+
 		if (!page) {
 			if (pool_idx > 0) {
 				/* Retry with lower order pages */
@@ -407,7 +409,25 @@ void kgsl_pool_free_page(struct page *page)
 	}
 
 	/* Give back to system as not added to pool */
-	kgsl_free_pages(page, page_order);
+	__free_pages(page, page_order);
+}
+
+/*
+ * Return true if the pool of specified page size is supported
+ * or no pools are supported otherwise return false.
+ */
+bool kgsl_pool_avaialable(int page_size)
+{
+	int i;
+
+	if (!kgsl_num_pools)
+		return true;
+
+	for (i = 0; i < kgsl_num_pools; i++)
+		if (ilog2(page_size >> PAGE_SHIFT) == kgsl_pools[i].pool_order)
+			return true;
+
+	return false;
 }
 
 static void kgsl_pool_reserve_pages(void)
@@ -420,7 +440,8 @@ static void kgsl_pool_reserve_pages(void)
 		for (j = 0; j < kgsl_pools[i].reserved_pages; j++) {
 			int order = kgsl_pools[i].pool_order;
 			gfp_t gfp_mask = kgsl_gfp_mask(order);
-			page = kgsl_alloc_pages(gfp_mask, order);
+
+			page = alloc_pages(gfp_mask, order);
 			if (page != NULL)
 				_kgsl_pool_add_page(&kgsl_pools[i], page);
 		}
@@ -436,16 +457,12 @@ kgsl_pool_shrink_scan_objects(struct shrinker *shrinker,
 	/* nr represents number of pages to be removed*/
 	int nr = sc->nr_to_scan;
 	int total_pages = kgsl_pool_size_total();
-	unsigned long ret;
 
 	/* Target pages represents new  pool size */
 	int target_pages = (nr > total_pages) ? 0 : (total_pages - nr);
 
 	/* Reduce pool size to target_pages */
-	ret = kgsl_pool_reduce(target_pages, false);
-
-	/* If we are unable to shrink more, stop trying */
-	return (ret == 0) ? SHRINK_STOP : ret;
+	return kgsl_pool_reduce(target_pages, false);
 }
 
 static unsigned long

@@ -265,6 +265,8 @@ static void drawobj_destroy_sync(struct kgsl_drawobj *drawobj)
 
 		/*
 		 * Don't do anything if the event has already expired.
+		 * If this thread clears the pending bit mask then it is
+		 * responsible for doing context put.
 		 */
 		if (!test_and_clear_bit(i, &syncobj->pending))
 			continue;
@@ -274,10 +276,9 @@ static void drawobj_destroy_sync(struct kgsl_drawobj *drawobj)
 			kgsl_cancel_event(drawobj->device,
 				&event->context->events, event->timestamp,
 				drawobj_sync_func, event);
-
 			/*
-			 * Since this thread clears the pending bit mask, it is
-			 * responsible for doing context put.
+			 * Do context put here to make sure the context is alive
+			 * till this thread cancels kgsl event.
 			 */
 			kgsl_context_put(event->context);
 			break;
@@ -428,6 +429,7 @@ static int drawobj_add_sync_fence(struct kgsl_device *device,
 		clear_bit(event->id, &syncobj->pending);
 
 		drawobj_put(drawobj);
+
 		/*
 		 * Print a syncpoint_fence_expire trace if
 		 * the fence is already signaled or there is

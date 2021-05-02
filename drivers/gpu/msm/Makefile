@@ -49,6 +49,3 @@ msm_adreno-objs = $(msm_adreno-y)
 
 obj-$(CONFIG_QCOM_KGSL) += msm_kgsl_core.o
 obj-$(CONFIG_QCOM_KGSL) += msm_adreno.o
-
-CFLAGS_adreno_trace.o := -I$(src)
-CFLAGS_kgsl_trace.o := -I$(src)
