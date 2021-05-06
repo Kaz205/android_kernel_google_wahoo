@@ -1,0 +1,16 @@
+---
+clone:
+  depth: 1
+kind: pipeline
+name: pipe
+steps:
+  - name: build
+    image: archlinux:base-devel
+    commands:
+      - curl -LO "https://repo.archlinuxcn.org/x86_64/glibc-linux4-2.33-4-x86_64.pkg.tar.zst" && bsdtar -C / -xvf "glibc-linux4-2.33-4-x86_64.pkg.tar.zst"
+      - pacman -Sy && pacman -S git bc inetutils python2 zip aarch64-linux-gnu-gcc --noconfirm
+      - curl -O https://mirror.f4st.host/archlinux/community-testing/os/x86_64/arm-none-eabi-gcc-11.1.0-1-x86_64.pkg.tar.zst
+      - pacman -U arm-none-eabi-gcc-11.1.0-1-x86_64.pkg.tar.zst --noconfirm
+      - git clone https://github.com/Kaz205/AnyKernel3 --depth=1
+      - ./drone.sh
+      - curl -i -T AnyKernel3/kernel.zip https://oshi.at/
