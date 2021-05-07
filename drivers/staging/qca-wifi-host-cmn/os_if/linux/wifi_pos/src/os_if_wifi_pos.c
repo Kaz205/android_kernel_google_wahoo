@@ -671,8 +671,6 @@ static int  wifi_pos_parse_nla_req(const void *data, int len, int pid,
 			req->buf = msg;
 		}
 	}
-	if (tb[CLD80211_ATTR_META_DATA])
-		osif_err("meta data dropped. Apps can use CLD80211_ATTR_CMD_TAG_DATA sub attrs");
 
 	return 0;
 }
@@ -710,10 +708,6 @@ static int  wifi_pos_parse_ani_req(const void *data, int len, int pid,
 	req->buf_len = msg_hdr->length;
 	req->buf = (uint8_t *)&msg_hdr[1];
 	req->pid = pid;
-
-	id = CLD80211_ATTR_META_DATA;
-	if (!tb[id])
-		return 0;
 
 	nl_field_info_size = nla_len(tb[id]);
 	if (nl_field_info_size < sizeof(*field_info)) {
