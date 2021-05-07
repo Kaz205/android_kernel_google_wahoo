@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011, 2014-2018, 2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -71,10 +62,11 @@
 #ifndef __CDS_REGDOMAIN_H
 #define __CDS_REGDOMAIN_H
 
-#define MAX_CHANNELS_PER_OPERATING_CLASS  25
-#define CDS_MAX_SUPP_OPER_CLASSES 32
+#include <wlan_cmn.h>
+#include <reg_services_public_struct.h>
+
 #define MIN_TX_PWR_CAP    8
-#define MAX_TX_PWR_CAP    22
+#define MAX_TX_PWR_CAP    24
 
 #define CTRY_DEFAULT          0
 #define CTRY_FLAG             0x8000
@@ -310,7 +302,6 @@ enum reg_domain {
 	ETSI9_WORLD = 0x3E,
 	ETSI10_WORLD = 0x24,
 	ETSI11_WORLD = 0x26,
-	ETSI13_WORLD = 0x28,
 
 	APL4_WORLD = 0x42,
 	APL3_FCCA = 0x50,
@@ -413,7 +404,6 @@ enum reg_domain {
 	ETSI9 = 0x0930,
 	ETSI10 = 0x0D30,
 	ETSI11 = 0x0E30,
-	ETSI13 = 0x0E39,
 
 	APL1 = 0x0150,
 	APL2 = 0x0250,
@@ -447,37 +437,7 @@ enum reg_domain {
 	MKKA = 0x0A40,
 	MKKC = 0x0A50,
 	ETSIC = 0x0C30,
-	ETSID = 0x0F30,
-};
 
-/**
- * enum ctl_val - CTL value
- * @FCC: FCC
- * @MKK: MKK
- * @ETSI: ETSI
- * @NO_CTL: no CTL
- */
-enum ctl_val {
-	FCC = 0x10,
-	MKK = 0x40,
-	ETSI = 0x30,
-	NO_CTL = 0xff
-};
-
-/**
- * enum offset_t: channel offset
- * @BW20: 20 mhz channel
- * @BW40_LOW_PRIMARY: lower channel in 40 mhz
- * @BW40_HIGH_PRIMARY: higher channel in 40 mhz
- * @BW80: 80 mhz channel
- * @BWALL: unknown bandwidth
- */
-enum offset_t {
-	BW20 = 0,
-	BW40_LOW_PRIMARY = 1,
-	BW40_HIGH_PRIMARY = 3,
-	BW80,
-	BWALL
 };
 
 /**
@@ -519,30 +479,6 @@ struct reg_dmn {
 };
 
 /**
- * struct reg_dmn_op_class_map_t: operating class
- * @op_class: operating class number
- * @ch_spacing: channel spacing
- * @offset: offset
- * @channels: channel set
- */
-struct reg_dmn_op_class_map_t {
-	uint8_t op_class;
-	uint8_t ch_spacing;
-	enum offset_t offset;
-	uint8_t channels[MAX_CHANNELS_PER_OPERATING_CLASS];
-};
-
-/**
- * struct reg_dmn_supp_op_classes: operating classes
- * @num_classes: number of classes
- * @classes: classes
- */
-struct reg_dmn_supp_op_classes {
-	uint8_t num_classes;
-	uint8_t classes[CDS_MAX_SUPP_OPER_CLASSES];
-};
-
-/**
  * struct reg_dmn_tables: reg domain table
  * @reg_dmn_pairs: list of reg domain pairs
  * @all_countries: list of countries
@@ -563,14 +499,11 @@ struct reg_dmn_tables {
 int32_t cds_fill_some_regulatory_info(struct regulatory *reg);
 int32_t cds_get_country_from_alpha2(uint8_t *alpha2);
 void cds_fill_and_send_ctl_to_fw(struct regulatory *reg);
-void cds_set_wma_dfs_region(uint8_t dfs_region);
-uint16_t cds_reg_dmn_get_opclass_from_channel(uint8_t *country,
-					      uint8_t channel,
-					      uint8_t offset);
-uint16_t cds_reg_dmn_get_chanwidth_from_opclass(uint8_t *country,
-						uint8_t channel,
-						uint8_t opclass);
-uint16_t cds_reg_dmn_set_curr_opclasses(uint8_t num_classes, uint8_t *class);
-uint16_t cds_reg_dmn_get_curr_opclasses(uint8_t *num_classes, uint8_t *class);
-
+/**
+ * cds_is_etsi_europe_country - check ETSI Europe country or not
+ * @country: country string with two Characters
+ *
+ * Return: true if country in ETSI Europe country list
+ */
+bool cds_is_etsi_europe_country(uint8_t *country);
 #endif /* __CDS_REGDOMAIN_H */

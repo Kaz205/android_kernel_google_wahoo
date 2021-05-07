@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -45,170 +36,40 @@
 #include "sir_mac_prop_exts.h"
 #include "sir_common.h"
 
-#include "cfg_api.h"
-
 #include "lim_api.h"
 
 #include "sch_api.h"
 
-#include "sch_sys_params.h"
 #include "lim_trace.h"
 #include "lim_types.h"
 #include "lim_utils.h"
 
 #include "wma_types.h"
 
-/* -------------------------------------------------------------------- */
-/* */
-/*                          Static Variables */
-/* */
-/* ------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------- */
-/**
- * sch_init_globals
- *
- * FUNCTION:
- * Initialize globals
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param None
- * @return None
- */
-
-void sch_init_globals(tpAniSirGlobal pMac)
+QDF_STATUS sch_send_beacon_req(struct mac_context *mac, uint8_t *beaconPayload,
+			       uint16_t size, struct pe_session *pe_session,
+			       enum sir_bcn_update_reason reason)
 {
-	pMac->sch.gSchHcfEnabled = false;
-
-	pMac->sch.gSchScanRequested = false;
-	pMac->sch.gSchScanReqRcvd = false;
-
-	pMac->sch.gSchGenBeacon = 1;
-	pMac->sch.gSchBeaconsSent = 0;
-	pMac->sch.gSchBeaconsWritten = 0;
-	pMac->sch.gSchBcnParseErrorCnt = 0;
-	pMac->sch.gSchBcnIgnored = 0;
-	pMac->sch.gSchBBXportRcvCnt = 0;
-	pMac->sch.gSchUnknownRcvCnt = 0;
-	pMac->sch.gSchBcnRcvCnt = 0;
-	pMac->sch.gSchRRRcvCnt = 0;
-	pMac->sch.qosNullCnt = 0;
-	pMac->sch.numData = 0;
-	pMac->sch.numPoll = 0;
-	pMac->sch.numCorrupt = 0;
-	pMac->sch.numBogusInt = 0;
-	pMac->sch.numTxAct0 = 0;
-	pMac->sch.rrTimeout = SCH_RR_TIMEOUT;
-	pMac->sch.pollPeriod = SCH_POLL_PERIOD;
-	pMac->sch.multipleSched = 1;
-	pMac->sch.maxPollTimeouts = 20;
-	pMac->sch.checkCfbFlagStuck = 0;
-}
-
-/* -------------------------------------------------------------------- */
-/**
- * sch_post_message
- *
- * FUNCTION:
- * Post the beacon message to the scheduler message queue
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param pMsg pointer to message
- * @return None
- */
-
-tSirRetStatus sch_post_message(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
-{
-	sch_process_message(pMac, pMsg);
-
-	return eSIR_SUCCESS;
-}
-
-/* --------------------------------------------------------------------------- */
-/**
- * sch_send_start_scan_rsp
- *
- * FUNCTION:
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param None
- * @return None
- */
-
-void sch_send_start_scan_rsp(tpAniSirGlobal pMac)
-{
-	tSirMsgQ msgQ;
-	uint32_t retCode;
-
-	msgQ.type = SIR_SCH_START_SCAN_RSP;
-	retCode = lim_post_msg_api(pMac, &msgQ);
-	if (retCode != eSIR_SUCCESS)
-		pe_err("Posting START_SCAN_RSP to LIM failed, reason=%X",
-			retCode);
-}
-
-/**
- * sch_send_beacon_req
- *
- * FUNCTION:
- *
- * LOGIC:
- * 1) SCH received SIR_SCH_BEACON_GEN_IND
- * 2) SCH updates TIM IE and other beacon related IE's
- * 3) SCH sends WMA_SEND_BEACON_REQ to HAL. HAL then copies the beacon
- *    template to memory
- *
- * ASSUMPTIONS:
- * Memory allocation is reqd to send this message and SCH allocates memory.
- * The assumption is that HAL will "free" this memory.
- *
- * NOTE:
- *
- * @param pMac global
- *
- * @param beaconPayload
- *
- * @param size - Length of the beacon
- *
- * @return QDF_STATUS
- */
-tSirRetStatus sch_send_beacon_req(tpAniSirGlobal pMac, uint8_t *beaconPayload,
-				  uint16_t size, tpPESession psessionEntry)
-{
-	tSirMsgQ msgQ;
+	struct scheduler_msg msgQ = {0};
 	tpSendbeaconParams beaconParams = NULL;
-	tSirRetStatus retCode;
+	QDF_STATUS retCode;
 
-	if (LIM_IS_AP_ROLE(psessionEntry) &&
-			(pMac->sch.schObject.fBeaconChanged)) {
-		retCode = lim_send_probe_rsp_template_to_hal(pMac,
-				psessionEntry,
-				&psessionEntry->
-				DefProbeRspIeBitmap
-				[0]);
-		if (eSIR_SUCCESS != retCode) {
+	pe_debug("Indicating HAL to copy the beacon template [%d bytes] to memory, reason %d",
+		size, reason);
+
+	if (LIM_IS_AP_ROLE(pe_session) &&
+	   (mac->sch.beacon_changed)) {
+		retCode = lim_send_probe_rsp_template_to_hal(mac,
+				pe_session,
+				&pe_session->DefProbeRspIeBitmap[0]);
+		if (QDF_STATUS_SUCCESS != retCode)
 			pe_err("FAILED to send probe response template with retCode %d",
-					retCode);
-		}
+				retCode);
 	}
+
 	beaconParams = qdf_mem_malloc(sizeof(tSendbeaconParams));
-	if (NULL == beaconParams)
-		return eSIR_MEM_ALLOC_FAILED;
+	if (!beaconParams)
+		return QDF_STATUS_E_NOMEM;
 
 	msgQ.type = WMA_SEND_BEACON_REQ;
 
@@ -216,31 +77,45 @@ tSirRetStatus sch_send_beacon_req(tpAniSirGlobal pMac, uint8_t *beaconPayload,
 	msgQ.reserved = 0;
 
 	/* Fill in tSendbeaconParams members */
-	qdf_mem_copy(beaconParams->bssId, psessionEntry->bssId,
-		     sizeof(psessionEntry->bssId));
+	qdf_mem_copy(beaconParams->bssId, pe_session->bssId,
+		     sizeof(pe_session->bssId));
 
-	if (LIM_IS_IBSS_ROLE(psessionEntry)) {
+	if (LIM_IS_IBSS_ROLE(pe_session)) {
 		beaconParams->timIeOffset = 0;
 	} else {
-		beaconParams->timIeOffset = psessionEntry->schBeaconOffsetBegin;
+		beaconParams->timIeOffset = pe_session->schBeaconOffsetBegin;
+		if (pe_session->dfsIncludeChanSwIe) {
+			beaconParams->csa_count_offset =
+				mac->sch.csa_count_offset;
+			beaconParams->ecsa_count_offset =
+				mac->sch.ecsa_count_offset;
+		}
 	}
+
+	beaconParams->vdev_id = pe_session->smeSessionId;
+	beaconParams->reason = reason;
 
 	/* p2pIeOffset should be atleast greater than timIeOffset */
-	if ((pMac->sch.schObject.p2pIeOffset != 0) &&
-	    (pMac->sch.schObject.p2pIeOffset <
-	     psessionEntry->schBeaconOffsetBegin)) {
+	if ((mac->sch.p2p_ie_offset != 0) &&
+	    (mac->sch.p2p_ie_offset <
+	     pe_session->schBeaconOffsetBegin)) {
 		pe_err("Invalid p2pIeOffset:[%d]",
-			pMac->sch.schObject.p2pIeOffset);
+			mac->sch.p2p_ie_offset);
 		QDF_ASSERT(0);
 		qdf_mem_free(beaconParams);
-		return eSIR_FAILURE;
+		return QDF_STATUS_E_FAILURE;
 	}
-	beaconParams->p2pIeOffset = pMac->sch.schObject.p2pIeOffset;
-#ifdef WLAN_SOFTAP_FW_BEACON_TX_PRNT_LOG
-	pe_err("TimIeOffset:[%d]", beaconParams->TimIeOffset);
-#endif
+	beaconParams->p2pIeOffset = mac->sch.p2p_ie_offset;
 
-	beaconParams->beacon = beaconPayload;
+	if (size > SIR_MAX_BEACON_SIZE) {
+		pe_err("beacon size (%d) exceed host limit %d",
+		       size, SIR_MAX_BEACON_SIZE);
+		QDF_ASSERT(0);
+		qdf_mem_free(beaconParams);
+		return QDF_STATUS_E_FAILURE;
+	}
+	qdf_mem_copy(beaconParams->beacon, beaconPayload, size);
+
 	beaconParams->beaconLength = (uint32_t) size;
 	msgQ.bodyptr = beaconParams;
 	msgQ.bodyval = 0;
@@ -248,35 +123,35 @@ tSirRetStatus sch_send_beacon_req(tpAniSirGlobal pMac, uint8_t *beaconPayload,
 	/* Keep a copy of recent beacon frame sent */
 
 	/* free previous copy of the beacon */
-	if (psessionEntry->beacon) {
-		qdf_mem_free(psessionEntry->beacon);
+	if (pe_session->beacon) {
+		qdf_mem_free(pe_session->beacon);
 	}
 
-	psessionEntry->bcnLen = 0;
-	psessionEntry->beacon = NULL;
+	pe_session->bcnLen = 0;
+	pe_session->beacon = NULL;
 
-	psessionEntry->beacon = qdf_mem_malloc(size);
-	if (psessionEntry->beacon != NULL) {
-		qdf_mem_copy(psessionEntry->beacon, beaconPayload, size);
-		psessionEntry->bcnLen = size;
+	pe_session->beacon = qdf_mem_malloc(size);
+	if (pe_session->beacon) {
+		qdf_mem_copy(pe_session->beacon, beaconPayload, size);
+		pe_session->bcnLen = size;
 	}
 
-	MTRACE(mac_trace_msg_tx(pMac, psessionEntry->peSessionId, msgQ.type));
-	retCode = wma_post_ctrl_msg(pMac, &msgQ);
-	if (eSIR_SUCCESS != retCode)
+	MTRACE(mac_trace_msg_tx(mac, pe_session->peSessionId, msgQ.type));
+	retCode = wma_post_ctrl_msg(mac, &msgQ);
+	if (QDF_STATUS_SUCCESS != retCode)
 		pe_err("Posting SEND_BEACON_REQ to HAL failed, reason=%X",
 			retCode);
 
 	return retCode;
 }
 
-static uint32_t lim_remove_p2p_ie_from_add_ie(tpAniSirGlobal pMac,
-					      tpPESession psessionEntry,
+static uint32_t lim_remove_p2p_ie_from_add_ie(struct mac_context *mac,
+					      struct pe_session *pe_session,
 					      uint8_t *addIeWoP2pIe,
 					      uint32_t *addnIELenWoP2pIe)
 {
-	uint32_t left = psessionEntry->addIeParams.probeRespDataLen;
-	uint8_t *ptr = psessionEntry->addIeParams.probeRespData_buff;
+	uint32_t left = pe_session->add_ie_params.probeRespDataLen;
+	uint8_t *ptr = pe_session->add_ie_params.probeRespData_buff;
 	uint8_t elem_id, elem_len;
 	uint32_t offset = 0;
 	uint8_t eid = 0xDD;
@@ -284,14 +159,14 @@ static uint32_t lim_remove_p2p_ie_from_add_ie(tpAniSirGlobal pMac,
 	qdf_mem_copy(addIeWoP2pIe, ptr, left);
 	*addnIELenWoP2pIe = left;
 
-	if (addIeWoP2pIe != NULL) {
+	if (addIeWoP2pIe) {
 		while (left >= 2) {
 			elem_id  = ptr[0];
 			elem_len = ptr[1];
 			left -= 2;
 			if (elem_len > left) {
 				pe_err("Invalid IEs");
-				return eSIR_FAILURE;
+				return QDF_STATUS_E_FAILURE;
 			}
 			if ((elem_id == eid) &&
 				(!qdf_mem_cmp(&ptr[2],
@@ -307,17 +182,17 @@ static uint32_t lim_remove_p2p_ie_from_add_ie(tpAniSirGlobal pMac,
 			}
 		}
 	}
-	return eSIR_SUCCESS;
+	return QDF_STATUS_SUCCESS;
 }
 
-uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
-					    tpPESession psessionEntry,
+uint32_t lim_send_probe_rsp_template_to_hal(struct mac_context *mac,
+					    struct pe_session *pe_session,
 					    uint32_t *IeBitmap)
 {
-	tSirMsgQ msgQ;
-	uint8_t *pFrame2Hal = psessionEntry->pSchProbeRspTemplate;
+	struct scheduler_msg msgQ = {0};
+	uint8_t *pFrame2Hal = pe_session->pSchProbeRspTemplate;
 	tpSendProbeRespParams pprobeRespParams = NULL;
-	uint32_t retCode = eSIR_FAILURE;
+	uint32_t retCode = QDF_STATUS_E_FAILURE;
 	uint32_t nPayload, nBytes = 0, nStatus;
 	tpSirMacMgmtHdr pMacHdr;
 	uint32_t addnIEPresent = false;
@@ -328,11 +203,11 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 	tDot11fIEExtCap extracted_extcap;
 	bool extcap_present = false;
 	tDot11fProbeResponse *prb_rsp_frm;
-	tSirRetStatus status;
+	QDF_STATUS status;
 	uint16_t addn_ielen = 0;
 
 	/* Check if probe response IE is present or not */
-	addnIEPresent = (psessionEntry->addIeParams.probeRespDataLen != 0);
+	addnIEPresent = (pe_session->add_ie_params.probeRespDataLen != 0);
 	if (addnIEPresent) {
 		/*
 		* probe response template should not have P2P IE.
@@ -344,27 +219,27 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 		* by the FW, may also have P2P IE which will fail
 		* P2P cert case 6.1.3
 		*/
-		addIeWoP2pIe = qdf_mem_malloc(psessionEntry->addIeParams.
+		addIeWoP2pIe = qdf_mem_malloc(pe_session->add_ie_params.
 						probeRespDataLen);
-		if (NULL == addIeWoP2pIe) {
+		if (!addIeWoP2pIe) {
 			pe_err("FAILED to alloc memory when removing P2P IE");
-			return eSIR_MEM_ALLOC_FAILED;
+			return QDF_STATUS_E_NOMEM;
 		}
 
-		retStatus = lim_remove_p2p_ie_from_add_ie(pMac, psessionEntry,
+		retStatus = lim_remove_p2p_ie_from_add_ie(mac, pe_session,
 					addIeWoP2pIe, &addnIELenWoP2pIe);
-		if (retStatus != eSIR_SUCCESS) {
+		if (retStatus != QDF_STATUS_SUCCESS) {
 			qdf_mem_free(addIeWoP2pIe);
-			return eSIR_FAILURE;
+			return QDF_STATUS_E_FAILURE;
 		}
 
 		/* Probe rsp IE available */
 		/*need to check the data length */
 		addIE = qdf_mem_malloc(addnIELenWoP2pIe);
-		if (NULL == addIE) {
+		if (!addIE) {
 			pe_err("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA1 length");
 			qdf_mem_free(addIeWoP2pIe);
-			return eSIR_MEM_ALLOC_FAILED;
+			return QDF_STATUS_E_NOMEM;
 		}
 		addn_ielen = addnIELenWoP2pIe;
 
@@ -376,20 +251,13 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 
 		qdf_mem_zero((uint8_t *)&extracted_extcap,
 			     sizeof(tDot11fIEExtCap));
-		status = lim_strip_extcap_update_struct(pMac, addIE,
+		status = lim_strip_extcap_update_struct(mac, addIE,
 				&addn_ielen, &extracted_extcap);
-		if (eSIR_SUCCESS != status) {
+		if (QDF_STATUS_SUCCESS != status) {
 			pe_debug("extcap not extracted");
 		} else {
 			extcap_present = true;
 		}
-	}
-
-	if (addnIEPresent) {
-		if ((nBytes + addn_ielen) <= SIR_MAX_PACKET_SIZE)
-			nBytes += addn_ielen;
-		else
-			addnIEPresent = false;  /* Dont include the IE. */
 	}
 
 	/*
@@ -397,14 +265,14 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 	 * may change the frame size. Therefore, MUST merge ExtCap IE before
 	 * dot11f get packed payload size.
 	 */
-	prb_rsp_frm = &psessionEntry->probeRespFrame;
+	prb_rsp_frm = &pe_session->probeRespFrame;
 	if (extcap_present)
 		lim_merge_extcap_struct(&prb_rsp_frm->ExtCap,
 					&extracted_extcap,
 					true);
 
-	nStatus = dot11f_get_packed_probe_response_size(pMac,
-			&psessionEntry->probeRespFrame, &nPayload);
+	nStatus = dot11f_get_packed_probe_response_size(mac,
+			&pe_session->probeRespFrame, &nPayload);
 	if (DOT11F_FAILED(nStatus)) {
 		pe_err("Failed to calculate the packed size for a Probe Response (0x%08x)",
 			nStatus);
@@ -417,29 +285,36 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 
 	nBytes += nPayload + sizeof(tSirMacMgmtHdr);
 
+	if (addnIEPresent) {
+		if ((nBytes + addn_ielen) <= SIR_MAX_PROBE_RESP_SIZE)
+			nBytes += addn_ielen;
+		else
+			addnIEPresent = false;  /* Dont include the IE. */
+	}
+
 	/* Make sure we are not exceeding allocated len */
-	if (nBytes > SCH_MAX_PROBE_RESP_SIZE) {
+	if (nBytes > SIR_MAX_PROBE_RESP_SIZE) {
 		pe_err("nBytes %d greater than max size", nBytes);
 		qdf_mem_free(addIE);
-		return eSIR_FAILURE;
+		return QDF_STATUS_E_FAILURE;
 	}
 
 	/* Paranoia: */
-	qdf_mem_set(pFrame2Hal, nBytes, 0);
+	qdf_mem_zero(pFrame2Hal, nBytes);
 
 	/* Next, we fill out the buffer descriptor: */
-	lim_populate_mac_header(pMac, pFrame2Hal, SIR_MAC_MGMT_FRAME,
+	lim_populate_mac_header(mac, pFrame2Hal, SIR_MAC_MGMT_FRAME,
 					     SIR_MAC_MGMT_PROBE_RSP,
-					     psessionEntry->selfMacAddr,
-					     psessionEntry->selfMacAddr);
+					     pe_session->self_mac_addr,
+					     pe_session->self_mac_addr);
 
 	pMacHdr = (tpSirMacMgmtHdr) pFrame2Hal;
 
-	sir_copy_mac_addr(pMacHdr->bssId, psessionEntry->bssId);
+	sir_copy_mac_addr(pMacHdr->bssId, pe_session->bssId);
 
 	/* That done, pack the Probe Response: */
 	nStatus =
-		dot11f_pack_probe_response(pMac, &psessionEntry->probeRespFrame,
+		dot11f_pack_probe_response(mac, &pe_session->probeRespFrame,
 					   pFrame2Hal + sizeof(tSirMacMgmtHdr),
 					   nPayload, &nPayload);
 
@@ -462,11 +337,12 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 	qdf_mem_free(addIE);
 
 	pprobeRespParams = qdf_mem_malloc(sizeof(tSendProbeRespParams));
-	if (NULL == pprobeRespParams) {
+	if (!pprobeRespParams) {
 		pe_err("malloc failed for bytes %d", nBytes);
 	} else {
-		sir_copy_mac_addr(pprobeRespParams->bssId, psessionEntry->bssId);
-		pprobeRespParams->pProbeRespTemplate = pFrame2Hal;
+		sir_copy_mac_addr(pprobeRespParams->bssId, pe_session->bssId);
+		qdf_mem_copy(pprobeRespParams->probeRespTemplate,
+			     pFrame2Hal, nBytes);
 		pprobeRespParams->probeRespTemplateLen = nBytes;
 		qdf_mem_copy(pprobeRespParams->ucProxyProbeReqValidIEBmap,
 			     IeBitmap, (sizeof(uint32_t) * 8));
@@ -475,15 +351,12 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 		msgQ.bodyptr = pprobeRespParams;
 		msgQ.bodyval = 0;
 
-		retCode = wma_post_ctrl_msg(pMac, &msgQ);
-		if (eSIR_SUCCESS != retCode) {
-			pe_err("lim_send_probe_rsp_template_to_hal: FAIL bytes %d retcode[%X]",
-				nBytes, retCode);
+		retCode = wma_post_ctrl_msg(mac, &msgQ);
+		if (QDF_STATUS_SUCCESS != retCode) {
+			pe_err("FAIL bytes %d retcode[%X]", nBytes, retCode);
 			qdf_mem_free(pprobeRespParams);
 		} else {
-			pe_debug(
-				FL
-					("lim_send_probe_rsp_template_to_hal: Probe response template msg posted to HAL of bytes %d"),
+			pe_debug("Probe response template msg posted to HAL of bytes %d",
 				nBytes);
 		}
 	}
@@ -493,7 +366,7 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
 
 /**
  * sch_gen_timing_advert_frame() - Generate the TA frame and populate the buffer
- * @pMac: the global MAC context
+ * @mac: the global MAC context
  * @self_addr: the self MAC address
  * @buf: the buffer that will contain the frame
  * @timestamp_offset: return for the offset of the timestamp field
@@ -501,7 +374,7 @@ uint32_t lim_send_probe_rsp_template_to_hal(tpAniSirGlobal pMac,
  *
  * Return: the length of the buffer.
  */
-int sch_gen_timing_advert_frame(tpAniSirGlobal mac_ctx, tSirMacAddr self_addr,
+int sch_gen_timing_advert_frame(struct mac_context *mac_ctx, tSirMacAddr self_addr,
 	uint8_t **buf, uint32_t *timestamp_offset, uint32_t *time_value_offset)
 {
 	tDot11fTimingAdvertisementFrame frame;
@@ -531,9 +404,9 @@ int sch_gen_timing_advert_frame(tpAniSirGlobal mac_ctx, tSirMacAddr self_addr,
 
 	buf_size = sizeof(tSirMacMgmtHdr) + payload_size;
 	*buf = qdf_mem_malloc(buf_size);
-	if (*buf == NULL) {
+	if (!*buf) {
 		pe_err("Cannot allocate memory");
-		return eSIR_FAILURE;
+		return QDF_STATUS_E_FAILURE;
 	}
 
 	payload_size = 0;

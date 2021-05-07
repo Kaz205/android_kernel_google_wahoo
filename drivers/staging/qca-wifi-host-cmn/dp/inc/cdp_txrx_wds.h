@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 /**
  * @file cdp_txrx_wds.h
  * @brief Define the host data path WDS API functions
@@ -31,6 +23,32 @@
  */
 #ifndef _CDP_TXRX_WDS_H_
 #define _CDP_TXRX_WDS_H_
+#include "cdp_txrx_handle.h"
+/**
+ * @brief set the wds rx filter policy of the device
+ * @details
+ *  This flag sets the wds rx policy on the vdev. Rx frames not compliant
+ *  with the policy will be dropped.
+ *
+ * @param vdev_id - id of the data virtual device object
+ * @param val - the wds rx policy bitmask
+ * @return - QDF_STATUS
+ */
+static inline QDF_STATUS
+cdp_set_wds_rx_policy(ol_txrx_soc_handle soc,
+	uint8_t vdev_id,
+	u_int32_t val)
+{
+	if (!soc || !soc->ops || !soc->ops->wds_ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			"%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (soc->ops->wds_ops->txrx_set_wds_rx_policy)
+		soc->ops->wds_ops->txrx_set_wds_rx_policy(soc, vdev_id, val);
+	return QDF_STATUS_SUCCESS;
+}
 
 /**
  * @brief set the wds rx filter policy of the device
@@ -38,14 +56,45 @@
  *  This flag sets the wds rx policy on the vdev. Rx frames not compliant
  *  with the policy will be dropped.
  *
- * @param vdev - the data virtual device object
+ * @param psoc - psoc object
+ * @param vdev_id - id of the data virtual device object
+ * @param peer_mac - peer mac address
  * @param val - the wds rx policy bitmask
- * @return - void
+ * @return - QDF_STATUS
  */
-#if WDS_VENDOR_EXTENSION
-void
-ol_txrx_set_wds_rx_policy(
-	ol_txrx_vdev_handle vdev,
-	u_int32_t val);
-#endif
+static inline QDF_STATUS
+cdp_set_wds_tx_policy_update(ol_txrx_soc_handle soc,
+	uint8_t vdev_id, uint8_t *peer_mac,
+	int wds_tx_ucast, int wds_tx_mcast)
+{
+	if (!soc || !soc->ops || !soc->ops->wds_ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			"%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (soc->ops->wds_ops->txrx_wds_peer_tx_policy_update)
+		soc->ops->wds_ops->txrx_wds_peer_tx_policy_update(
+				soc, vdev_id, peer_mac, wds_tx_ucast,
+				wds_tx_mcast);
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * cdp_vdev_set_wds() - Set/unset wds_enable flag in vdev
+ * @soc - data path soc handle
+ * @vdev_id - id of data path vap handle
+ * @val - value to be set in wds_en flag
+ *
+ *  This flag enables WDS source port learning feature on a vdev
+ *
+ * return 1 on success
+ */
+static inline int
+cdp_vdev_set_wds(ol_txrx_soc_handle soc, uint8_t vdev_id, uint32_t val)
+{
+	if (soc->ops->wds_ops->vdev_set_wds)
+		return soc->ops->wds_ops->vdev_set_wds(soc, vdev_id, val);
+	return 0;
+}
 #endif

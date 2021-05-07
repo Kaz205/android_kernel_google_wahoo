@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,15 +16,10 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef __COPY_ENGINE_API_H__
 #define __COPY_ENGINE_API_H__
 
+#include "pld_common.h"
 #include "ce_main.h"
 #include "hif_main.h"
 
@@ -110,11 +102,27 @@ typedef void (*CE_recv_cb)(struct CE_handle *copyeng,
 typedef void (*CE_watermark_cb)(struct CE_handle *copyeng,
 				void *per_CE_wm_context, unsigned int flags);
 
+
 #define CE_WM_FLAG_SEND_HIGH   1
 #define CE_WM_FLAG_SEND_LOW    2
 #define CE_WM_FLAG_RECV_HIGH   4
 #define CE_WM_FLAG_RECV_LOW    8
 #define CE_HTT_TX_CE           4
+
+
+/**
+ * ce_service_srng_init() - Initialization routine for CE services
+ *                          in SRNG based targets
+ * Return : None
+ */
+void ce_service_srng_init(void);
+
+/**
+ * ce_service_legacy_init() - Initialization routine for CE services
+ *                            in legacy targets
+ * Return : None
+ */
+void ce_service_legacy_init(void);
 
 /* A list of buffers to be gathered and sent */
 struct ce_sendlist;
@@ -162,10 +170,10 @@ extern qdf_nbuf_t ce_batch_send(struct CE_handle *ce_tx_hdl,
 		uint32_t len,
 		uint32_t sendhead);
 
-extern int ce_send_single(struct CE_handle *ce_tx_hdl,
-		qdf_nbuf_t msdu,
-		uint32_t transfer_id,
-		uint32_t len);
+QDF_STATUS ce_send_single(struct CE_handle *ce_tx_hdl,
+			  qdf_nbuf_t msdu,
+			  uint32_t transfer_id,
+			  uint32_t len);
 /*
  * Register a Send Callback function.
  * This function is called as soon as the contents of a Send
@@ -202,7 +210,7 @@ int ce_sendlist_buf_add(struct ce_sendlist *sendlist,
  *   transfer_id     - arbitrary ID; reflected to destination
  * Returns 0 on success; otherwise an error status.
  *
- * Implemenation note: Pushes multiple buffers with Gather to Source ring.
+ * Implementation note: Pushes multiple buffers with Gather to Source ring.
  */
 int ce_sendlist_send(struct CE_handle *copyeng,
 		void *per_transfer_send_context,
@@ -219,7 +227,7 @@ int ce_sendlist_send(struct CE_handle *copyeng,
  *   buffer                     - address of buffer in CE space
  * Returns 0 on success; otherwise an error status.
  *
- * Implemenation note: Pushes a buffer to Dest ring.
+ * Implementation note: Pushes a buffer to Dest ring.
  */
 int ce_recv_buf_enqueue(struct CE_handle *copyeng,
 			void *per_transfer_recv_context,
@@ -290,20 +298,6 @@ void ce_recv_watermarks_set(struct CE_handle *copyeng,
 unsigned int ce_send_entries_avail(struct CE_handle *copyeng);
 unsigned int ce_recv_entries_avail(struct CE_handle *copyeng);
 
-/*
- * Return the number of entries in the ring that are ready
- * to be processed by software.
- *
- * For source ring, the number of descriptors that have
- * been completed and can now be overwritten with new send
- * descriptors.
- *
- * For destination ring, the number of descriptors that
- * are available to be processed (newly received buffers).
- */
-unsigned int ce_send_entries_done(struct CE_handle *copyeng);
-unsigned int ce_recv_entries_done(struct CE_handle *copyeng);
-
 /* recv flags */
 /* Data is byte-swapped */
 #define CE_RECV_FLAG_SWAPPED            1
@@ -316,7 +310,7 @@ unsigned int ce_recv_entries_done(struct CE_handle *copyeng);
  *    in a recv_cb function when processing buf_lists
  *    in a recv_cb function in order to mitigate recv_cb's.
  *
- * Implemenation note: Pops buffer from Dest ring.
+ * Implementation note: Pops buffer from Dest ring.
  */
 int ce_completed_recv_next(struct CE_handle *copyeng,
 			   void **per_CE_contextp,
@@ -393,15 +387,24 @@ void ce_enable_any_copy_compl_intr_nolock(struct hif_softc *scn);
  */
 bool ce_get_rx_pending(struct hif_softc *scn);
 
+/**
+ * war_ce_src_ring_write_idx_set() - Set write index for CE source ring
+ *
+ * Return: None
+ */
+void war_ce_src_ring_write_idx_set(struct hif_softc *scn,
+				   u32 ctrl_addr, unsigned int write_index);
+
 /* CE_attr.flags values */
 #define CE_ATTR_NO_SNOOP             0x01 /* Use NonSnooping PCIe accesses? */
 #define CE_ATTR_BYTE_SWAP_DATA       0x02 /* Byte swap data words */
 #define CE_ATTR_SWIZZLE_DESCRIPTORS  0x04 /* Swizzle descriptors? */
 #define CE_ATTR_DISABLE_INTR         0x08 /* no interrupt on copy completion */
 #define CE_ATTR_ENABLE_POLL          0x10 /* poll for residue descriptors */
+#define CE_ATTR_DIAG                 0x20 /* Diag CE */
 
 /**
- * stuct CE_attr - Attributes of an instance of a Copy Engine
+ * struct CE_attr - Attributes of an instance of a Copy Engine
  * @flags:         CE_ATTR_* values
  * @priority:      TBD
  * @src_nentries:  #entries in source ring - Must be a power of 2
@@ -485,12 +488,90 @@ static inline void ce_pkt_error_count_incr(
 
 bool ce_check_rx_pending(struct CE_state *CE_state);
 void *hif_ce_get_lro_ctx(struct hif_opaque_softc *hif_hdl, int ctx_id);
-int ce_lro_flush_cb_register(struct hif_opaque_softc *scn,
-			     void (handler)(void *arg),
-			     void *(lro_init_handler)(void));
-int ce_lro_flush_cb_deregister(struct hif_opaque_softc *hif_hdl,
-			       void (lro_deinit_cb)(void *arg));
+struct ce_ops *ce_services_srng(void);
+struct ce_ops *ce_services_legacy(void);
+bool ce_srng_based(struct hif_softc *scn);
+/* Forward declaration */
+struct CE_ring_state;
+
+struct ce_ops {
+	uint32_t (*ce_get_desc_size)(uint8_t ring_type);
+	int (*ce_ring_setup)(struct hif_softc *scn, uint8_t ring_type,
+		uint32_t ce_id, struct CE_ring_state *ring,
+		struct CE_attr *attr);
+	int (*ce_send_nolock)(struct CE_handle *copyeng,
+			   void *per_transfer_context,
+			   qdf_dma_addr_t buffer,
+			   uint32_t nbytes,
+			   uint32_t transfer_id,
+			   uint32_t flags,
+			   uint32_t user_flags);
+	int (*ce_sendlist_send)(struct CE_handle *copyeng,
+			void *per_transfer_context,
+			struct ce_sendlist *sendlist, unsigned int transfer_id);
+	QDF_STATUS (*ce_revoke_recv_next)(struct CE_handle *copyeng,
+			void **per_CE_contextp,
+			void **per_transfer_contextp,
+			qdf_dma_addr_t *bufferp);
+	QDF_STATUS (*ce_cancel_send_next)(struct CE_handle *copyeng,
+			void **per_CE_contextp, void **per_transfer_contextp,
+			qdf_dma_addr_t *bufferp, unsigned int *nbytesp,
+			unsigned int *transfer_idp,
+			uint32_t *toeplitz_hash_result);
+	int (*ce_recv_buf_enqueue)(struct CE_handle *copyeng,
+			void *per_recv_context, qdf_dma_addr_t buffer);
+	bool (*watermark_int)(struct CE_state *CE_state, unsigned int *flags);
+	int (*ce_completed_recv_next_nolock)(struct CE_state *CE_state,
+			void **per_CE_contextp,
+			void **per_transfer_contextp,
+			qdf_dma_addr_t *bufferp,
+			unsigned int *nbytesp,
+			unsigned int *transfer_idp,
+			unsigned int *flagsp);
+	int (*ce_completed_send_next_nolock)(struct CE_state *CE_state,
+			void **per_CE_contextp,
+			void **per_transfer_contextp,
+			qdf_dma_addr_t *bufferp,
+			unsigned int *nbytesp,
+			unsigned int *transfer_idp,
+			unsigned int *sw_idx,
+			unsigned int *hw_idx,
+			uint32_t *toeplitz_hash_result);
+	unsigned int (*ce_recv_entries_done_nolock)(struct hif_softc *scn,
+			struct CE_state *CE_state);
+	unsigned int (*ce_send_entries_done_nolock)(struct hif_softc *scn,
+			    struct CE_state *CE_state);
+	void (*ce_per_engine_handler_adjust)(struct CE_state *CE_state,
+			     int disable_copy_compl_intr);
+	void (*ce_prepare_shadow_register_v2_cfg)(struct hif_softc *scn,
+			    struct pld_shadow_reg_v2_cfg **shadow_config,
+			    int *num_shadow_registers_configured);
+	int (*ce_get_index_info)(struct hif_softc *scn, void *ce_state,
+				 struct ce_index *info);
+};
 
 int hif_ce_bus_early_suspend(struct hif_softc *scn);
 int hif_ce_bus_late_resume(struct hif_softc *scn);
+
+/*
+ * ce_engine_service_reg:
+ * @scn: hif_context
+ * @CE_id: Copy engine ID
+ *
+ * Called from ce_per_engine_service and goes through the regular interrupt
+ * handling that does not involve the WLAN fast path feature.
+ *
+ * Returns void
+ */
+void ce_engine_service_reg(struct hif_softc *scn, int CE_id);
+
+/**
+ * ce_per_engine_service_fast() - CE handler routine to service fastpath msgs
+ * @scn: hif_context
+ * @ce_id: Copy engine ID
+ *
+ * Return: void
+ */
+void ce_per_engine_service_fast(struct hif_softc *scn, int ce_id);
+
 #endif /* __COPY_ENGINE_API_H__ */

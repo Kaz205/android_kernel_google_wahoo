@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 #ifndef _HIF_USB_INTERNAL_H
 #define _HIF_USB_INTERNAL_H
 
@@ -37,7 +29,12 @@
 #include "hif.h"
 #include "if_usb.h"
 
+#ifdef QCN7605_SUPPORT
+#define TX_URB_COUNT    64
+#else
 #define TX_URB_COUNT    32
+#endif
+
 #define RX_URB_COUNT    32
 
 #define HIF_USB_RX_BUFFER_SIZE  (1792 + 8)
@@ -54,7 +51,8 @@
 
 #define HIF_USB_FLUSH_WORK(pipe) flush_work(&pipe->io_complete_work)
 #else
-#define HIF_USB_SCHEDULE_WORK(pipe) schedule_work(&pipe->io_complete_work)
+#define HIF_USB_SCHEDULE_WORK(pipe) queue_work(system_highpri_wq,\
+		&(pipe)->io_complete_work)
 #define HIF_USB_INIT_WORK(pipe)\
 		INIT_WORK(&pipe->io_complete_work,\
 				usb_hif_io_comp_work)

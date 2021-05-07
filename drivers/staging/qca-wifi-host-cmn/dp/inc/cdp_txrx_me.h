@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 /**
  * @file cdp_txrx_me.h
  * @brief Define the host data path mcast enhance API functions
@@ -32,49 +24,62 @@
 #ifndef _CDP_TXRX_ME_H_
 #define _CDP_TXRX_ME_H_
 
+#include <cdp_txrx_ops.h>
 /* TODO: adf need to be replaced with qdf */
+#include "cdp_txrx_handle.h"
 
-#if ATH_SUPPORT_ME_FW_BASED
+static inline void
+cdp_tx_me_alloc_descriptor(ol_txrx_soc_handle soc, uint8_t pdev_id)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_CDP, QDF_TRACE_LEVEL_DEBUG,
+				"%s: Invalid Instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
 
-extern u_int16_t
-ol_tx_desc_alloc_and_mark_for_mcast_clone(struct ol_txrx_pdev_t *pdev, u_int16_t
-buf_count)
+	if (!soc->ops->me_ops ||
+	    !soc->ops->me_ops->tx_me_alloc_descriptor)
+		return;
 
-extern u_int16_t
-ol_tx_desc_free_and_unmark_for_mcast_clone(struct ol_txrx_pdev_t *pdev,
-	u_int16_t buf_count);
+	soc->ops->me_ops->tx_me_alloc_descriptor(soc, pdev_id);
+}
 
-extern u_int16_t
-ol_tx_get_mcast_buf_allocated_marked(struct ol_txrx_pdev_t *pdev);
-#else
-extern void
-ol_tx_me_alloc_descriptor(struct ol_txrx_pdev_t *pdev);
+static inline void
+cdp_tx_me_free_descriptor(ol_txrx_soc_handle soc, uint8_t pdev_id)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_CDP, QDF_TRACE_LEVEL_DEBUG,
+				"%s: Invalid Instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
 
-extern void
-ol_tx_me_free_descriptor(struct ol_txrx_pdev_t *pdev);
+	if (!soc->ops->me_ops ||
+	    !soc->ops->me_ops->tx_me_free_descriptor)
+		return;
 
-extern uint16_t
-ol_tx_me_convert_ucast(ol_txrx_vdev_handle vdev, qdf_nbuf_t wbuf,
-		u_int8_t newmac[][6], uint8_t newmaccnt);
+	soc->ops->me_ops->tx_me_free_descriptor(soc, pdev_id);
+}
+
+static inline uint16_t
+cdp_tx_me_convert_ucast(ol_txrx_soc_handle soc, uint8_t vdev_id,
+			qdf_nbuf_t wbuf, u_int8_t newmac[][6],
+			uint8_t newmaccnt)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_CDP, QDF_TRACE_LEVEL_DEBUG,
+				"%s: Invalid Instance", __func__);
+		QDF_BUG(0);
+		return 0;
+	}
+
+	if (!soc->ops->me_ops ||
+	    !soc->ops->me_ops->tx_me_convert_ucast)
+		return 0;
+
+	return soc->ops->me_ops->tx_me_convert_ucast
+			(soc, vdev_id, wbuf, newmac, newmaccnt);
+}
+
 #endif
-/* Should be a function pointer in ol_txrx_osif_ops{} */
-#if ATH_MCAST_HOST_INSPECT
-/**
- * @brief notify mcast frame indication from FW.
- * @details
- *      This notification will be used to convert
- *      multicast frame to unicast.
- *
- * @param pdev - handle to the ctrl SW's physical device object
- * @param vdev_id - ID of the virtual device received the special data
- * @param msdu - the multicast msdu returned by FW for host inspect
- */
-
-int ol_mcast_notify(ol_pdev_handle pdev,
-	u_int8_t vdev_id, qdf_nbuf_t msdu);
-#endif
-
-#endif
-
-
-

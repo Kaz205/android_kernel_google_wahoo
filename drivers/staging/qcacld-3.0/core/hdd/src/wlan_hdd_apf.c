@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,13 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
-
 /**
  * DOC: wlan_hdd_apf.c
  *
@@ -33,9 +23,9 @@
  */
 
 #include "wlan_hdd_apf.h"
+#include "osif_sync.h"
 #include "qca_vendor.h"
-
-struct hdd_apf_context apf_context;
+#include "wlan_osif_request_manager.h"
 
 /*
  * define short names for the global vendor params
@@ -72,50 +62,45 @@ wlan_hdd_apf_offload_policy[APF_MAX + 1] = {
 	[APF_PROG_LEN] = {.type = NLA_U32},
 };
 
-void hdd_apf_context_init(void)
+void hdd_apf_context_init(struct hdd_adapter *adapter)
 {
-	qdf_event_create(&apf_context.qdf_apf_event);
-	qdf_spinlock_create(&apf_context.lock);
-	apf_context.apf_enabled = true;
+	qdf_event_create(&adapter->apf_context.qdf_apf_event);
+	qdf_spinlock_create(&adapter->apf_context.lock);
+	adapter->apf_context.apf_enabled = true;
 }
 
-void hdd_apf_context_destroy(void)
+void hdd_apf_context_destroy(struct hdd_adapter *adapter)
 {
-	qdf_event_destroy(&apf_context.qdf_apf_event);
-	qdf_spinlock_destroy(&apf_context.lock);
-	qdf_mem_zero(&apf_context, sizeof(apf_context));
+	qdf_event_destroy(&adapter->apf_context.qdf_apf_event);
+	qdf_spinlock_destroy(&adapter->apf_context.lock);
+	qdf_mem_zero(&adapter->apf_context,
+		     sizeof(struct hdd_apf_context));
 }
 
-void hdd_get_apf_capabilities_cb(void *hdd_context,
+struct apf_offload_priv {
+	struct sir_apf_get_offload apf_get_offload;
+};
+
+void hdd_get_apf_capabilities_cb(void *context,
 				 struct sir_apf_get_offload *data)
 {
-	hdd_context_t *hdd_ctx = hdd_context;
-	struct hdd_apf_context *context = &apf_context;
+	struct osif_request *request;
+	struct apf_offload_priv *priv;
 
-	ENTER();
+	hdd_enter();
 
-	if (wlan_hdd_validate_context(hdd_ctx) || !data) {
-		hdd_err("HDD context is invalid or data(%pK) is null",
-			data);
+	request = osif_request_get(context);
+	if (!request) {
+		hdd_err("Obsolete request");
 		return;
 	}
 
-	qdf_spin_lock(&context->lock);
+	priv = osif_request_priv(request);
+	priv->apf_get_offload = *data;
+	osif_request_complete(request);
+	osif_request_put(request);
 
-	/* The caller presumably timed out so there is nothing we can do */
-	if (context->magic != APF_CONTEXT_MAGIC) {
-		qdf_spin_unlock(&context->lock);
-		return;
-	}
-
-	/* context is valid so caller is still waiting */
-	/* paranoia: invalidate the magic */
-	context->magic = 0;
-
-	context->capability_response = *data;
-	qdf_event_set(&context->qdf_apf_event);
-
-	qdf_spin_unlock(&context->lock);
+	hdd_exit();
 }
 
 /**
@@ -126,13 +111,13 @@ void hdd_get_apf_capabilities_cb(void *hdd_context,
  * Return: 0 on success, error number otherwise.
  */
 static int
-hdd_post_get_apf_capabilities_rsp(hdd_context_t *hdd_ctx,
+hdd_post_get_apf_capabilities_rsp(struct hdd_context *hdd_ctx,
 				  struct sir_apf_get_offload *apf_get_offload)
 {
 	struct sk_buff *skb;
 	uint32_t nl_buf_len;
 
-	ENTER();
+	hdd_enter();
 
 	nl_buf_len = NLMSG_HDRLEN;
 	nl_buf_len +=
@@ -145,9 +130,10 @@ hdd_post_get_apf_capabilities_rsp(hdd_context_t *hdd_ctx,
 		return -ENOMEM;
 	}
 
+	hdd_ctx->apf_version = apf_get_offload->apf_version;
 	hdd_debug("APF Version: %u APF max bytes: %u",
-			apf_get_offload->apf_version,
-			apf_get_offload->max_bytes_for_apf_inst);
+		  apf_get_offload->apf_version,
+		  apf_get_offload->max_bytes_for_apf_inst);
 
 	if (nla_put_u32(skb, APF_PACKET_SIZE,
 			apf_get_offload->max_bytes_for_apf_inst) ||
@@ -157,7 +143,7 @@ hdd_post_get_apf_capabilities_rsp(hdd_context_t *hdd_ctx,
 	}
 
 	cfg80211_vendor_cmd_reply(skb);
-	EXIT();
+	hdd_exit();
 	return 0;
 
 nla_put_failure:
@@ -166,46 +152,61 @@ nla_put_failure:
 }
 
 /**
- * hdd_get_apf_capabilities - Get APF Capabilities
+ * hdd_get_apf_capabilities - Get APF offload Capabilities
  * @hdd_ctx: Hdd context
  *
  * Return: 0 on success, errno on failure
  */
-static int hdd_get_apf_capabilities(hdd_context_t *hdd_ctx)
+static int hdd_get_apf_capabilities(struct hdd_context *hdd_ctx)
 {
-	static struct hdd_apf_context *context = &apf_context;
 	QDF_STATUS status;
 	int ret;
+	void *cookie;
+	struct osif_request *request;
+	struct apf_offload_priv *priv;
+	static const struct osif_request_params params = {
+		.priv_size = sizeof(*priv),
+		.timeout_ms = WLAN_WAIT_TIME_APF,
+	};
 
-	ENTER();
+	hdd_enter();
 
-	qdf_spin_lock(&context->lock);
-	context->magic = APF_CONTEXT_MAGIC;
-	qdf_event_reset(&context->qdf_apf_event);
-	qdf_spin_unlock(&context->lock);
-
-	status = sme_get_apf_capabilities(hdd_ctx->hHal);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		hdd_err("Unable to retrieve APF caps");
+	request = osif_request_alloc(&params);
+	if (!request) {
+		hdd_err("Unable to allocate request");
 		return -EINVAL;
 	}
-	/* request was sent -- wait for the response */
-	status = qdf_wait_for_event_completion(&context->qdf_apf_event,
-					       WLAN_WAIT_TIME_APF_GET_CAPS);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		hdd_err("Target response timed out");
-		qdf_spin_lock(&context->lock);
-		context->magic = 0;
-		qdf_spin_unlock(&context->lock);
+	cookie = osif_request_cookie(request);
 
-		return -ETIMEDOUT;
+	status = sme_get_apf_capabilities(hdd_ctx->mac_handle,
+					  hdd_get_apf_capabilities_cb,
+					  cookie);
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_err("Unable to retrieve APF caps");
+		ret = qdf_status_to_os_return(status);
+		goto cleanup;
 	}
+	ret = osif_request_wait_for_response(request);
+	if (ret) {
+		hdd_err("Target response timed out");
+		goto cleanup;
+	}
+	priv = osif_request_priv(request);
 	ret = hdd_post_get_apf_capabilities_rsp(hdd_ctx,
-					&apf_context.capability_response);
+						&priv->apf_get_offload);
 	if (ret)
 		hdd_err("Failed to post get apf capabilities");
 
-	EXIT();
+cleanup:
+	/*
+	 * either we never sent a request to SME, we sent a request to
+	 * SME and timed out, or we sent a request to SME, received a
+	 * response from SME, and posted the response to userspace.
+	 * regardless we are done with the request.
+	 */
+	osif_request_put(request);
+	hdd_exit();
+
 	return ret;
 }
 
@@ -217,27 +218,19 @@ static int hdd_get_apf_capabilities(hdd_context_t *hdd_ctx)
  *
  * Return: 0 on success; errno on failure
  */
-static int hdd_set_reset_apf_offload(hdd_context_t *hdd_ctx,
+static int hdd_set_reset_apf_offload(struct hdd_context *hdd_ctx,
 				     struct nlattr **tb,
-				     hdd_adapter_t *adapter)
+				     struct hdd_adapter *adapter)
 {
-	struct sir_apf_set_offload *apf_set_offload;
+	struct sir_apf_set_offload apf_set_offload = {0};
 	QDF_STATUS status;
 	int prog_len;
 	int ret = 0;
-
-	ENTER();
 
 	if (!hdd_conn_is_connected(
 	    WLAN_HDD_GET_STATION_CTX_PTR(adapter))) {
 		hdd_err("Not in Connected state!");
 		return -ENOTSUPP;
-	}
-
-	apf_set_offload = qdf_mem_malloc(sizeof(*apf_set_offload));
-	if (apf_set_offload == NULL) {
-		hdd_err("qdf_mem_malloc failed for apf_set_offload");
-		return -ENOMEM;
 	}
 
 	/* Parse and fetch apf packet size */
@@ -246,10 +239,12 @@ static int hdd_set_reset_apf_offload(hdd_context_t *hdd_ctx,
 		ret = -EINVAL;
 		goto fail;
 	}
-	apf_set_offload->total_length = nla_get_u32(tb[APF_PACKET_SIZE]);
 
-	if (!apf_set_offload->total_length) {
-		hdd_debug("APF reset packet filter received");
+	apf_set_offload.session_id = adapter->vdev_id;
+	apf_set_offload.total_length = nla_get_u32(tb[APF_PACKET_SIZE]);
+
+	if (!apf_set_offload.total_length) {
+		hdd_debug("APF reset packet");
 		goto post_sme;
 	}
 
@@ -261,21 +256,15 @@ static int hdd_set_reset_apf_offload(hdd_context_t *hdd_ctx,
 	}
 
 	prog_len = nla_len(tb[APF_PROGRAM]);
-	apf_set_offload->program = qdf_mem_malloc(sizeof(uint8_t) * prog_len);
+	apf_set_offload.program = qdf_mem_malloc(sizeof(uint8_t) * prog_len);
 
-	if (apf_set_offload->program == NULL) {
-		hdd_err("qdf_mem_malloc failed for apf offload program");
+	if (!apf_set_offload.program) {
 		ret = -ENOMEM;
 		goto fail;
 	}
 
-	apf_set_offload->current_length = prog_len;
-	nla_memcpy(apf_set_offload->program, tb[APF_PROGRAM], prog_len);
-	apf_set_offload->session_id = adapter->sessionId;
-
-	hdd_debug("APF set instructions");
-	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_HDD, QDF_TRACE_LEVEL_DEBUG,
-			   apf_set_offload->program, prog_len);
+	apf_set_offload.current_length = prog_len;
+	nla_memcpy(apf_set_offload.program, tb[APF_PROGRAM], prog_len);
 
 	/* Parse and fetch filter Id */
 	if (!tb[APF_FILTER_ID]) {
@@ -283,7 +272,7 @@ static int hdd_set_reset_apf_offload(hdd_context_t *hdd_ctx,
 		ret = -EINVAL;
 		goto fail;
 	}
-	apf_set_offload->filter_id = nla_get_u32(tb[APF_FILTER_ID]);
+	apf_set_offload.filter_id = nla_get_u32(tb[APF_FILTER_ID]);
 
 	/* Parse and fetch current offset */
 	if (!tb[APF_CURRENT_OFFSET]) {
@@ -291,67 +280,63 @@ static int hdd_set_reset_apf_offload(hdd_context_t *hdd_ctx,
 		ret = -EINVAL;
 		goto fail;
 	}
-	apf_set_offload->current_offset = nla_get_u32(tb[APF_CURRENT_OFFSET]);
+	apf_set_offload.current_offset = nla_get_u32(tb[APF_CURRENT_OFFSET]);
 
 post_sme:
-	hdd_debug("Posting APF SET/RESET to SME, session_id: %d APF Version: %d filter ID: %d total_length: %d current_length: %d current offset: %d",
-			apf_set_offload->session_id,
-			apf_set_offload->version,
-			apf_set_offload->filter_id,
-			apf_set_offload->total_length,
-			apf_set_offload->current_length,
-			apf_set_offload->current_offset);
+	hdd_debug("Posting, session_id: %d APF Version: %d filter ID: %d total_len: %d current_len: %d offset: %d",
+		  apf_set_offload.session_id, apf_set_offload.version,
+		  apf_set_offload.filter_id, apf_set_offload.total_length,
+		  apf_set_offload.current_length,
+		  apf_set_offload.current_offset);
 
-	status = sme_set_apf_instructions(hdd_ctx->hHal, apf_set_offload);
+	status = sme_set_apf_instructions(hdd_ctx->mac_handle,
+					  &apf_set_offload);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		hdd_err("sme_set_apf_instructions failed(err=%d)", status);
 		ret = -EINVAL;
 		goto fail;
 	}
-	EXIT();
+	hdd_exit();
 
 fail:
-	if (apf_set_offload->current_length)
-		qdf_mem_free(apf_set_offload->program);
-	qdf_mem_free(apf_set_offload);
+	if (apf_set_offload.current_length)
+		qdf_mem_free(apf_set_offload.program);
+
+	if (!ret)
+		hdd_ctx->apf_enabled_v2 = true;
+
 	return ret;
 }
 
 /**
  * hdd_enable_disable_apf - Enable or Disable the APF interpreter
- * @vdev_id: VDEV id
- * @hdd_ctx: Hdd context
+ * @adapter: HDD Adapter
  * @apf_enable: true: Enable APF Int., false: disable APF Int.
  *
  * Return: 0 on success, errno on failure
  */
 static int
-hdd_enable_disable_apf(hdd_context_t *hdd_ctx, uint8_t vdev_id, bool apf_enable)
+hdd_enable_disable_apf(struct hdd_adapter *adapter, bool apf_enable)
 {
 	QDF_STATUS status;
 
-	ENTER();
-
-	status = sme_set_apf_enable_disable(hdd_ctx->hHal, vdev_id, apf_enable);
+	status = sme_set_apf_enable_disable(hdd_adapter_get_mac_handle(adapter),
+					    adapter->vdev_id, apf_enable);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		hdd_err("Unable to post sme apf enable/disable message (status-%d)",
 				status);
 		return -EINVAL;
 	}
 
-	qdf_spin_lock(&apf_context.lock);
-	apf_context.apf_enabled = apf_enable;
-	qdf_spin_unlock(&apf_context.lock);
+	adapter->apf_context.apf_enabled = apf_enable;
 
-	EXIT();
 	return 0;
 }
 
 /**
  * hdd_apf_write_memory - Write into the apf work memory
- * @hdd_ctx: Hdd context
+ * @adapter: HDD Adapter
  * @tb: list of attributes
- * @session_id: Session id
  *
  * This function writes code/data into the APF work memory and
  * provides program length that is passed on to the interpreter.
@@ -359,23 +344,15 @@ hdd_enable_disable_apf(hdd_context_t *hdd_ctx, uint8_t vdev_id, bool apf_enable)
  * Return: 0 on success, errno on failure
  */
 static int
-hdd_apf_write_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
-		     uint8_t session_id)
+hdd_apf_write_memory(struct hdd_adapter *adapter, struct nlattr **tb)
 {
 	struct wmi_apf_write_memory_params write_mem_params = {0};
+	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	QDF_STATUS status;
 	int ret = 0;
-	bool apf_enabled;
 
-	ENTER();
-
-	write_mem_params.vdev_id = session_id;
-
-	qdf_spin_lock(&apf_context.lock);
-	apf_enabled = apf_context.apf_enabled;
-	qdf_spin_unlock(&apf_context.lock);
-
-	if (apf_enabled) {
+	write_mem_params.vdev_id = adapter->vdev_id;
+	if (adapter->apf_context.apf_enabled) {
 		hdd_err("Cannot get/set when APF interpreter is enabled");
 		return -EINVAL;
 	}
@@ -408,58 +385,71 @@ hdd_apf_write_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 
 	write_mem_params.buf = qdf_mem_malloc(sizeof(uint8_t)
 						* write_mem_params.length);
-	if (write_mem_params.buf == NULL) {
-		hdd_err("failed to alloc mem for apf write mem operation");
+	if (!write_mem_params.buf)
 		return -EINVAL;
-	}
 	nla_memcpy(write_mem_params.buf, tb[APF_PROGRAM],
 		   write_mem_params.length);
 
-	write_mem_params.apf_version =
-				apf_context.capability_response.apf_version;
+	write_mem_params.apf_version = hdd_ctx->apf_version;
 
-	status = sme_apf_write_work_memory(hdd_ctx->hHal, &write_mem_params);
+	status = sme_apf_write_work_memory(hdd_adapter_get_mac_handle(adapter),
+					   &write_mem_params);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		hdd_err("Unable to retrieve APF caps");
 		ret = -EINVAL;
 	}
 
+	hdd_debug("Writing successful into APF work memory from offset 0x%X:",
+		  write_mem_params.addr_offset);
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_HDD, QDF_TRACE_LEVEL_DEBUG,
+			   write_mem_params.buf, write_mem_params.length);
+
 	if (write_mem_params.buf)
 		qdf_mem_free(write_mem_params.buf);
 
-	EXIT();
 	return ret;
 }
 
-void
+/**
+ * hdd_apf_read_memory_callback - HDD Callback for the APF read memory
+ *	operation
+ * @context: Hdd context
+ * @evt: APF read memory event response parameters
+ *
+ * Return: 0 on success, errno on failure
+ */
+static void
 hdd_apf_read_memory_callback(void *hdd_context,
-			     struct wmi_apf_read_memory_resp_event_params
-								*read_mem_evt)
+			     struct wmi_apf_read_memory_resp_event_params *evt)
 {
-	hdd_context_t *hdd_ctx = hdd_context;
-	static struct hdd_apf_context *context = &apf_context;
+	struct hdd_context *hdd_ctx = hdd_context;
+	struct hdd_adapter *adapter;
+	struct hdd_apf_context *context;
 	uint8_t *buf_ptr;
 	uint32_t pkt_offset;
-	ENTER();
 
-	if (wlan_hdd_validate_context(hdd_ctx) || !read_mem_evt) {
+	hdd_enter();
+
+	if (wlan_hdd_validate_context(hdd_ctx) || !evt) {
 		hdd_err("HDD context is invalid or event buf(%pK) is null",
-			read_mem_evt);
+			evt);
 		return;
 	}
 
-	qdf_spin_lock(&context->lock);
+	adapter = hdd_get_adapter_by_vdev(hdd_ctx, evt->vdev_id);
+	if (hdd_validate_adapter(adapter))
+		return;
+	context = &adapter->apf_context;
+
 	if (context->magic != APF_CONTEXT_MAGIC) {
 		/* The caller presumably timed out, nothing to do */
-		qdf_spin_unlock(&context->lock);
 		hdd_err("Caller timed out or corrupt magic, simply return");
 		return;
 	}
 
-	if (read_mem_evt->offset <  context->offset) {
-		qdf_spin_unlock(&context->lock);
+	if (evt->offset <  context->offset) {
 		hdd_err("Offset in read event(%d) smaller than offset in request(%d)!",
-					read_mem_evt->offset, context->offset);
+					evt->offset, context->offset);
 		return;
 	}
 
@@ -468,50 +458,50 @@ hdd_apf_read_memory_callback(void *hdd_context,
 	 * Calculate the packet offset, which gives us the relative
 	 * location in the buffer to start copy into.
 	 */
-	pkt_offset = read_mem_evt->offset - context->offset;
+	pkt_offset = evt->offset - context->offset;
 
-	if (context->buf_len < pkt_offset + read_mem_evt->length) {
-		qdf_spin_unlock(&context->lock);
+	if ((pkt_offset > context->buf_len) ||
+	    (context->buf_len - pkt_offset < evt->length)) {
 		hdd_err("Read chunk exceeding allocated space");
 		return;
 	}
 	buf_ptr = context->buf + pkt_offset;
 
-	qdf_mem_copy(buf_ptr, read_mem_evt->data, read_mem_evt->length);
+	qdf_mem_copy(buf_ptr, evt->data, evt->length);
 
-	if (!read_mem_evt->more_data) {
+	if (!evt->more_data) {
 		/* Release the caller after last event, clear magic */
 		context->magic = 0;
 		qdf_event_set(&context->qdf_apf_event);
 	}
 
-	qdf_spin_unlock(&context->lock);
-
-	EXIT();
+	hdd_exit();
 }
 
 /**
  * hdd_apf_read_memory - Read part of the apf work memory
- * @hdd_ctx: Hdd context
+ * @adapter: HDD Adapter
  * @tb: list of attributes
- * @session_id: Session id
  *
  * Return: 0 on success, errno on failure
  */
-static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
-			       uint8_t session_id)
+static int hdd_apf_read_memory(struct hdd_adapter *adapter, struct nlattr **tb)
 {
 	struct wmi_apf_read_memory_params read_mem_params = {0};
-	static struct hdd_apf_context *context = &apf_context;
+	struct hdd_apf_context *context = &adapter->apf_context;
+	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	QDF_STATUS status;
 	unsigned long nl_buf_len = NLMSG_HDRLEN;
 	int ret = 0;
 	struct sk_buff *skb = NULL;
 	uint8_t *bufptr;
 
-	ENTER();
+	if (context->apf_enabled) {
+		hdd_err("Cannot get/set while interpreter is enabled");
+		return -EINVAL;
+	}
 
-	read_mem_params.vdev_id = session_id;
+	read_mem_params.vdev_id = adapter->vdev_id;
 
 	/* Read APF work memory offset */
 	if (!tb[APF_CURRENT_OFFSET]) {
@@ -519,6 +509,11 @@ static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 		return -EINVAL;
 	}
 	read_mem_params.addr_offset = nla_get_u32(tb[APF_CURRENT_OFFSET]);
+	if (read_mem_params.addr_offset > MAX_APF_MEMORY_LEN) {
+		hdd_err("attr apf memory offset should be less than %d",
+			MAX_APF_MEMORY_LEN);
+		return -EINVAL;
+	}
 
 	/* Read length */
 	if (!tb[APF_PACKET_SIZE]) {
@@ -531,17 +526,8 @@ static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 		return -EINVAL;
 	}
 	bufptr = qdf_mem_malloc(read_mem_params.length);
-	if (bufptr == NULL) {
-		hdd_err("alloc failed for cumulative event buffer");
+	if (!bufptr)
 		return -ENOMEM;
-	}
-
-	qdf_spin_lock(&context->lock);
-	if (context->apf_enabled) {
-		qdf_spin_unlock(&context->lock);
-		hdd_err("Cannot get/set while interpreter is enabled");
-		return -EINVAL;
-	}
 
 	qdf_event_reset(&context->qdf_apf_event);
 	context->offset = read_mem_params.addr_offset;
@@ -549,9 +535,10 @@ static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 	context->buf = bufptr;
 	context->buf_len = read_mem_params.length;
 	context->magic = APF_CONTEXT_MAGIC;
-	qdf_spin_unlock(&context->lock);
 
-	status = sme_apf_read_work_memory(hdd_ctx->hHal, &read_mem_params);
+	status = sme_apf_read_work_memory(hdd_adapter_get_mac_handle(adapter),
+					  &read_mem_params,
+					  hdd_apf_read_memory_callback);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		hdd_err("Unable to post sme APF read memory message (status-%d)",
 				status);
@@ -564,9 +551,7 @@ static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 					       WLAN_WAIT_TIME_APF_READ_MEM);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		hdd_err("Target response timed out");
-		qdf_spin_lock(&context->lock);
 		context->magic = 0;
-		qdf_spin_unlock(&context->lock);
 		ret = -ETIMEDOUT;
 		goto fail;
 	}
@@ -590,16 +575,19 @@ static int hdd_apf_read_memory(hdd_context_t *hdd_ctx, struct nlattr **tb,
 	}
 
 	cfg80211_vendor_cmd_reply(skb);
+
+	hdd_debug("Reading APF work memory from offset 0x%X:",
+		  read_mem_params.addr_offset);
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_HDD, QDF_TRACE_LEVEL_DEBUG,
+			   context->buf, read_mem_params.length);
 fail:
 	if (context->buf) {
 		qdf_mem_free(context->buf);
 		context->buf = NULL;
 	}
 
-	EXIT();
 	return ret;
 }
-
 
 /**
  * wlan_hdd_cfg80211_apf_offload() - Set/Reset to APF Offload
@@ -615,15 +603,21 @@ __wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
 				struct wireless_dev *wdev,
 				const void *data, int data_len)
 {
-	hdd_context_t *hdd_ctx = wiphy_priv(wiphy);
+	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
 	struct net_device *dev = wdev->netdev;
-	hdd_adapter_t *adapter =  WLAN_HDD_GET_PRIV_PTR(dev);
+	struct hdd_adapter *adapter =  WLAN_HDD_GET_PRIV_PTR(dev);
 	struct nlattr *tb[APF_MAX + 1];
 	int ret_val = 0, apf_subcmd;
-	uint8_t session_id = adapter->sessionId;
-	static struct hdd_apf_context *context = &apf_context;
+	struct hdd_apf_context *context;
 
-	ENTER();
+	hdd_enter();
+
+	if (!adapter) {
+		hdd_err("Adapter is null");
+		return -EINVAL;
+	}
+
+	context = &adapter->apf_context;
 
 	ret_val = wlan_hdd_validate_context(hdd_ctx);
 	if (ret_val)
@@ -634,21 +628,21 @@ __wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
 		return -EINVAL;
 	}
 
-	if (!hdd_ctx->apf_enabled) {
-		hdd_err("APF offload is not supported/enabled");
+	if (!ucfg_pmo_is_apf_enabled(hdd_ctx->psoc)) {
+		hdd_err("APF is not supported or disabled through INI");
 		return -ENOTSUPP;
-	}
-
-	if (hdd_nla_parse(tb, APF_MAX, data, data_len,
-			  wlan_hdd_apf_offload_policy)) {
-		hdd_err("Invalid ATTR");
-		return -EINVAL;
 	}
 
 	if (!(adapter->device_mode == QDF_STA_MODE ||
 	      adapter->device_mode == QDF_P2P_CLIENT_MODE)) {
-			hdd_err("APF only supported in STA or P2P CLI modes!");
-			return -ENOTSUPP;
+		hdd_err("APF only supported in STA or P2P CLI modes!");
+		return -ENOTSUPP;
+	}
+
+	if (wlan_cfg80211_nla_parse(tb, APF_MAX, data, data_len,
+				    wlan_hdd_apf_offload_policy)) {
+		hdd_err("Invalid ATTR");
+		return -EINVAL;
 	}
 
 	if (!tb[APF_SUBCMD]) {
@@ -657,10 +651,11 @@ __wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
 	}
 	apf_subcmd = nla_get_u32(tb[APF_SUBCMD]);
 
+	/* Do not allow simultaneous new APF commands on the same adapter */
 	qdf_spin_lock(&context->lock);
 	if (context->cmd_in_progress) {
 		qdf_spin_unlock(&context->lock);
-		hdd_err("Another APF cmd in progress, try again later!");
+		hdd_err("Another cmd in progress for same session!");
 		return -EAGAIN;
 	}
 	context->cmd_in_progress = true;
@@ -678,20 +673,16 @@ __wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
 
 	/* APF 3.0 sub-commands */
 	case QCA_WLAN_WRITE_PACKET_FILTER:
-		ret_val = hdd_apf_write_memory(hdd_ctx, tb, session_id);
+		ret_val = hdd_apf_write_memory(adapter, tb);
 		break;
 	case QCA_WLAN_READ_PACKET_FILTER:
-		ret_val = hdd_apf_read_memory(hdd_ctx, tb, session_id);
+		ret_val = hdd_apf_read_memory(adapter, tb);
 		break;
 	case QCA_WLAN_ENABLE_PACKET_FILTER:
-		ret_val = hdd_enable_disable_apf(hdd_ctx,
-						 session_id,
-						 true);
+		ret_val = hdd_enable_disable_apf(adapter, true);
 		break;
 	case QCA_WLAN_DISABLE_PACKET_FILTER:
-		ret_val = hdd_enable_disable_apf(hdd_ctx,
-						 session_id,
-						 false);
+		ret_val = hdd_enable_disable_apf(adapter, false);
 		break;
 	default:
 		hdd_err("Unknown APF Sub-command: %d", apf_subcmd);
@@ -705,25 +696,21 @@ __wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
 	return ret_val;
 }
 
-/**
- * wlan_hdd_cfg80211_apf_offload() - SSR Wrapper to APF Offload
- * @wiphy:    wiphy structure pointer
- * @wdev:     Wireless device structure pointer
- * @data:     Pointer to the data received
- * @data_len: Length of @data
- *
- * Return: 0 on success; errno on failure
- */
-
-int wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy,
-				  struct wireless_dev *wdev,
-				  const void *data, int data_len)
+int
+wlan_hdd_cfg80211_apf_offload(struct wiphy *wiphy, struct wireless_dev *wdev,
+			      const void *data, int data_len)
 {
-	int ret;
+	int errno;
+	struct osif_vdev_sync *vdev_sync;
 
-	cds_ssr_protect(__func__);
-	ret = __wlan_hdd_cfg80211_apf_offload(wiphy, wdev, data, data_len);
-	cds_ssr_unprotect(__func__);
+	errno = osif_vdev_sync_op_start(wdev->netdev, &vdev_sync);
+	if (errno)
+		return errno;
 
-	return ret;
+	errno = __wlan_hdd_cfg80211_apf_offload(wiphy, wdev, data, data_len);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return errno;
 }
+

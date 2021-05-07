@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef __PLD_COMMON_I_H__
 #define __PLD_COMMON_I_H__
 
@@ -32,6 +23,7 @@
 
 struct dev_node {
 	struct device *dev;
+	struct device *ifdev;
 	struct list_head list;
 	enum pld_bus_type bus_type;
 };
@@ -45,7 +37,8 @@ struct pld_context {
 
 struct pld_context *pld_get_global_context(void);
 int pld_add_dev(struct pld_context *pld_context,
-		struct device *dev, enum pld_bus_type type);
+		struct device *dev, struct device *ifdev,
+		enum pld_bus_type type);
 void pld_del_dev(struct pld_context *pld_context,
 		 struct device *dev);
 

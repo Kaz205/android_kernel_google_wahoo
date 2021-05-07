@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -41,6 +32,8 @@
 #define QDF_MAX_AVAILABLE_CPU	1
 #endif
 
+typedef __qdf_wait_queue_head_t qdf_wait_queue_head_t;
+
 /**
  * qdf_unlikely - Compiler-dependent macro denoting code likely to execute
  * @_expr: expression to be checked
@@ -54,9 +47,31 @@
 #define qdf_likely(_expr)       __qdf_likely(_expr)
 
 /**
+ * qdf_wmb - write memory barrier.
+ */
+#define qdf_wmb()                 __qdf_wmb()
+
+/**
+ * qdf_rmb - read memory barrier.
+ */
+#define qdf_rmb()                 __qdf_rmb()
+
+/**
  * qdf_mb - read + write memory barrier.
  */
 #define qdf_mb()                 __qdf_mb()
+
+/**
+ * qdf_ioread32 - read a register
+ * @offset: register address
+ */
+#define qdf_ioread32(offset)            __qdf_ioread32(offset)
+/**
+ * qdf_iowrite32 - write a register
+ * @offset: register address
+ * @value: value to write (32bit value)
+ */
+#define qdf_iowrite32(offset, value)    __qdf_iowrite32(offset, value)
 
 /**
  * qdf_assert - assert "expr" evaluates to false.
@@ -79,29 +94,54 @@
 
 /**
  * QDF_MAX - get maximum of two values
- * @_x: 1st arguement
- * @_y: 2nd arguement
+ * @_x: 1st argument
+ * @_y: 2nd argument
  */
 #define QDF_MAX(_x, _y) (((_x) > (_y)) ? (_x) : (_y))
 
 /**
  * QDF_MIN - get minimum of two values
- * @_x: 1st arguement
- * @_y: 2nd arguement
+ * @_x: 1st argument
+ * @_y: 2nd argument
  */
 #define QDF_MIN(_x, _y) (((_x) < (_y)) ? (_x) : (_y))
 
 /**
- * qdf_status_to_os_return - returns the status to OS.
- * @status: enum QDF_STATUS
- *
- * returns: int status success/failure
+ * QDF_IS_ADDR_BROADCAST - is mac address broadcast mac address
+ * @_a: pointer to mac address
  */
-static inline int qdf_status_to_os_return(QDF_STATUS status)
-{
-	return __qdf_status_to_os_return(status);
-}
+#define QDF_IS_ADDR_BROADCAST(_a)  \
+	((_a)[0] == 0xff &&        \
+	 (_a)[1] == 0xff &&        \
+	 (_a)[2] == 0xff &&        \
+	 (_a)[3] == 0xff &&        \
+	 (_a)[4] == 0xff &&        \
+	 (_a)[5] == 0xff)
 
+#define QDF_DECLARE_EWMA(name, factor, weight) \
+	__QDF_DECLARE_EWMA(name, factor, weight)
+
+#define qdf_ewma_tx_lag __qdf_ewma_tx_lag
+
+#define qdf_ewma_tx_lag_init(tx_lag) \
+	__qdf_ewma_tx_lag_init(tx_lag)
+
+#define qdf_ewma_tx_lag_add(tx_lag, value) \
+	__qdf_ewma_tx_lag_add(tx_lag, value)
+
+#define qdf_ewma_tx_lag_read(tx_lag) \
+	 __qdf_ewma_tx_lag_read(tx_lag)
+
+#define qdf_ewma_rx_rssi __qdf_ewma_rx_rssi
+
+#define qdf_ewma_rx_rssi_init(rx_rssi) \
+	__qdf_ewma_rx_rssi_init(rx_rssi)
+
+#define qdf_ewma_rx_rssi_add(rx_rssi, value) \
+	__qdf_ewma_rx_rssi_add(rx_rssi, value)
+
+#define qdf_ewma_rx_rssi_read(rx_rssi) \
+	__qdf_ewma_rx_rssi_read(rx_rssi)
 /**
  * qdf_set_bit() - set bit in address
  * @nr: bit number to be set
@@ -110,6 +150,73 @@ static inline int qdf_status_to_os_return(QDF_STATUS status)
  * Return: none
  */
 #define qdf_set_bit(nr, addr)    __qdf_set_bit(nr, addr)
+
+/**
+ * qdf_clear_bit() - clear bit in address
+ * @nr: bit number to be clear
+ * @addr: address buffer pointer
+ *
+ * Return: none
+ */
+#define qdf_clear_bit(nr, addr)    __qdf_clear_bit(nr, addr)
+
+/**
+ * qdf_test_bit() - test bit position in address
+ * @nr: bit number to be tested
+ * @addr: address buffer pointer
+ *
+ * Return: none
+ */
+#define qdf_test_bit(nr, addr)    __qdf_test_bit(nr, addr)
+
+/**
+ * qdf_test_and_clear_bit() - test and clear bit position in address
+ * @nr: bit number to be tested
+ * @addr: address buffer pointer
+ *
+ * Return: none
+ */
+#define qdf_test_and_clear_bit(nr, addr)    __qdf_test_and_clear_bit(nr, addr)
+
+/**
+ * qdf_find_first_bit() - find first bit position in address
+ * @addr: address buffer pointer
+ * @nbits: number of bits
+ *
+ * Return: position first set bit in addr
+ */
+#define qdf_find_first_bit(addr, nbits)    __qdf_find_first_bit(addr, nbits)
+
+#define qdf_wait_queue_interruptible(wait_queue, condition) \
+		__qdf_wait_queue_interruptible(wait_queue, condition)
+
+/**
+ * qdf_wait_queue_timeout() - wait for specified time on given condition
+ * @wait_queue: wait queue to wait on
+ * @condition: condition to wait on
+ * @timeout: timeout value in jiffies
+ *
+ * Return: 0 if condition becomes false after timeout
+ *         1 or remaining jiffies, if condition becomes true during timeout
+ */
+#define qdf_wait_queue_timeout(wait_queue, condition, timeout) \
+			__qdf_wait_queue_timeout(wait_queue, \
+						condition, timeout)
+
+
+#define qdf_init_waitqueue_head(_q) __qdf_init_waitqueue_head(_q)
+
+#define qdf_wake_up_interruptible(_q) __qdf_wake_up_interruptible(_q)
+
+/**
+ * qdf_wake_up() - wakes up sleeping waitqueue
+ * @wait_queue: wait queue, which needs wake up
+ *
+ * Return: none
+ */
+#define qdf_wake_up(_q) __qdf_wake_up(_q)
+
+#define qdf_wake_up_completion(_q) __qdf_wake_up_completion(_q)
 
 /**
  * qdf_container_of - cast a member of a structure out to the containing
@@ -166,7 +273,7 @@ static inline bool qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
  */
 static inline bool qdf_is_macaddr_zero(struct qdf_mac_addr *mac_addr)
 {
-	struct qdf_mac_addr zero_mac_addr = QDF_MAC_ADDR_ZERO_INITIALIZER;
+	struct qdf_mac_addr zero_mac_addr = QDF_MAC_ADDR_ZERO_INIT;
 
 	return qdf_is_macaddr_equal(mac_addr, &zero_mac_addr);
 }
@@ -215,8 +322,7 @@ static inline bool qdf_is_macaddr_group(struct qdf_mac_addr *mac_addr)
  */
 static inline bool qdf_is_macaddr_broadcast(struct qdf_mac_addr *mac_addr)
 {
-	struct qdf_mac_addr broadcast_mac_addr =
-		QDF_MAC_ADDR_BROADCAST_INITIALIZER;
+	struct qdf_mac_addr broadcast_mac_addr = QDF_MAC_ADDR_BCAST_INIT;
 	return qdf_is_macaddr_equal(mac_addr, &broadcast_mac_addr);
 }
 
@@ -343,56 +449,124 @@ static inline uint8_t *qdf_get_u32(uint8_t *ptr, uint32_t *value)
 /**
  * qdf_cpu_to_le16 - Convert a 16-bit value from CPU byte order to
  * little-endian byte order
+ *
+ * @x: value to be converted
  */
 #define qdf_cpu_to_le16(x)                   __qdf_cpu_to_le16(x)
 
 /**
  * qdf_cpu_to_le32 - Convert a 32-bit value from CPU byte order to
  * little-endian byte order
+ *
+ * @x: value to be converted
  */
 #define qdf_cpu_to_le32(x)                   __qdf_cpu_to_le32(x)
 
 /**
  * qdf_cpu_to_le64 - Convert a 64-bit value from CPU byte order to
  * little-endian byte order
+ *
+ * @x: value to be converted
  */
 #define qdf_cpu_to_le64(x)                   __qdf_cpu_to_le64(x)
 
 /**
- * qdf_be32_to_cpu - Convert a 32-bit value from big-endian byte order
+ * qdf_le16_to_cpu - Convert a 16-bit value from little-endian byte order
  * to CPU byte order
+ *
+ * @x: value to be converted
  */
-#define qdf_be32_to_cpu(x)                   __qdf_be32_to_cpu(x)
-
-/**
- * qdf_be64_to_cpu - Convert a 64-bit value from big-endian byte order
- * to CPU byte order
- */
-#define qdf_be64_to_cpu(x)                   __qdf_be64_to_cpu(x)
+#define qdf_le16_to_cpu(x)                   __qdf_le16_to_cpu(x)
 
 /**
  * qdf_le32_to_cpu - Convert a 32-bit value from little-endian byte
  * order to CPU byte order
+ *
+ * @x: value to be converted
  */
 #define qdf_le32_to_cpu(x)                   __qdf_le32_to_cpu(x)
 
 /**
  * qdf_le64_to_cpu - Convert a 64-bit value from little-endian byte
  * order to CPU byte order
+ *
+ * @x: value to be converted
  */
 #define qdf_le64_to_cpu(x)                   __qdf_le64_to_cpu(x)
 
 /**
- * qdf_le16_to_cpu - Convert a 16-bit value from little-endian byte order
- * to CPU byte order
+ * qdf_cpu_to_be16 - Convert a 16-bit value from CPU byte order to
+ * big-endian byte order
+ *
  * @x: value to be converted
  */
-#define qdf_le16_to_cpu(x)                   __qdf_le16_to_cpu(x)
+#define qdf_cpu_to_be16(x)                   __qdf_cpu_to_be16(x)
+
+/**
+ * qdf_cpu_to_be32 - Convert a 32-bit value from CPU byte order to
+ * big-endian byte order
+ *
+ * @x: value to be converted
+ */
+#define qdf_cpu_to_be32(x)                   __qdf_cpu_to_be32(x)
+
+/**
+ * qdf_cpu_to_be64 - Convert a 64-bit value from CPU byte order to
+ * big-endian byte order
+ *
+ * @x: value to be converted
+ */
+#define qdf_cpu_to_be64(x)                   __qdf_cpu_to_be64(x)
+
+
+/**
+ * qdf_be16_to_cpu - Convert a 16-bit value from big-endian byte order
+ * to CPU byte order
+ *
+ * @x: value to be converted
+ */
+#define qdf_be16_to_cpu(x)                   __qdf_be16_to_cpu(x)
+
+/**
+ * qdf_be32_to_cpu - Convert a 32-bit value from big-endian byte order
+ * to CPU byte order
+ *
+ * @x: value to be converted
+ */
+#define qdf_be32_to_cpu(x)                   __qdf_be32_to_cpu(x)
+
+/**
+ * qdf_be64_to_cpu - Convert a 64-bit value from big-endian byte order
+ * to CPU byte order
+ *
+ * @x: value to be converted
+ */
+#define qdf_be64_to_cpu(x)                   __qdf_be64_to_cpu(x)
 
 /**
  * qdf_function - replace with the name of the current function
  */
 #define qdf_function             __qdf_function
+
+/**
+ * qdf_min - minimum of two numbers
+ */
+#define qdf_min(a, b)   __qdf_min(a, b)
+
+/**
+ * qdf_ffz() - find first (least significant) zero bit
+ * @mask: the bitmask to check
+ *
+ * Return: The zero-based index of the first zero bit, or -1 if none are found
+ */
+#define qdf_ffz(mask) __qdf_ffz(mask)
+
+/**
+ * qdf_prefetch - prefetches the cacheline for read
+ *
+ * @x: address to be prefetched
+ */
+#define qdf_prefetch(x)                   __qdf_prefetch(x)
 
 /**
  * qdf_get_pwr2() - get next power of 2 integer from input value
@@ -421,6 +595,22 @@ static inline
 int qdf_get_cpu(void)
 {
 	return __qdf_get_cpu();
+}
+
+/**
+ * qdf_get_hweight8() - count num of 1's in bitmap
+ * @value: input bitmap
+ *
+ * Count num of 1's set in the bitmap
+ *
+ * Return: num of 1's
+ */
+static inline
+unsigned int qdf_get_hweight8(unsigned int w)
+{
+	unsigned int res = w - ((w >> 1) & 0x55);
+	res = (res & 0x33) + ((res >> 2) & 0x33);
+	return (res + (res >> 4)) & 0x0F;
 }
 
 /**
@@ -484,23 +674,6 @@ unsigned long qdf_rounddown_pow_of_two(unsigned long n)
 }
 
 /**
- * qdf_is_group_addr() - checks whether addr is multi cast
- * @mac_addr: address to be checked for multicast
- *
- * Check if the input mac addr is multicast addr
- *
- * Return: true if multicast addr else false
- */
-static inline
-bool qdf_is_group_addr(uint8_t *mac_addr)
-{
-	if (mac_addr[0] & 0x01)
-		return true;
-	else
-		return false;
-}
-
-/**
  * qdf_set_dma_coherent_mask() - set max number of bits allowed in dma addr
  * @dev: device pointer
  * @addr_bits: max number of bits allowed in dma address
@@ -529,27 +702,86 @@ uint64_t qdf_do_div(uint64_t dividend, uint32_t divisor)
 }
 
 /**
- * qdf_do_mod() - wrapper function for kernel macro(do_div).
+ * qdf_do_div_rem() - wrapper function for kernel macro(do_div)
+ *                    to get remainder.
  * @dividend: Dividend value
  * @divisor : Divisor value
  *
- * Return: Modulo
+ * Return: remainder
  */
 static inline
-uint64_t qdf_do_mod(uint64_t dividend, uint32_t divisor)
+uint64_t qdf_do_div_rem(uint64_t dividend, uint32_t divisor)
 {
-	return __qdf_do_mod(dividend, divisor);
+	return __qdf_do_div_rem(dividend, divisor);
 }
 
-#ifdef ENABLE_SMMU_S1_TRANSLATION
 /**
- * qdf_get_ipa_smmu_status() - to get IPA SMMU status
+ * qdf_get_random_bytes() - returns nbytes bytes of random
+ * data
  *
- * Return: IPA SMMU status
+ * Return: random bytes of data
  */
-static inline bool qdf_get_ipa_smmu_status(void)
+static inline
+void qdf_get_random_bytes(void *buf, int nbytes)
 {
-	return __qdf_get_ipa_smmu_status();
+	return __qdf_get_random_bytes(buf, nbytes);
 }
-#endif
+
+/**
+ * qdf_hex_to_bin() - QDF API to Convert hexa decimal ASCII character to
+ * unsigned integer value.
+ * @ch: hexa decimal ASCII character
+ *
+ * Return: For hexa decimal ASCII char return actual decimal value
+ *	   else -1 for bad input.
+ */
+static inline
+int qdf_hex_to_bin(char ch)
+{
+	return __qdf_hex_to_bin(ch);
+}
+
+/**
+ * qdf_hex_str_to_binary() - QDF API to Convert string of hexa decimal
+ * ASCII characters to array of unsigned integers.
+ * @dst: output array to hold converted values
+ * @src: input string of hexa decimal ASCII characters
+ * @count: size of dst string
+ *
+ * This function is used to convert string of hexa decimal characters to
+ * array of unsigned integers and caller should ensure:
+ *	a) @dst, @src are not NULL,
+ *	b) size of @dst should be (size of src / 2)
+ *
+ * Example 1:
+ * src = 11aa, means, src[0] = '1', src[1] = '2', src[2] = 'a', src[3] = 'a'
+ * count = (size of src / 2) = 2
+ * after conversion, dst[0] = 0x11, dst[1] = oxAA and return (0).
+ *
+ * Example 2:
+ * src = 11az, means, src[0] = '1', src[1] = '2', src[2] = 'a', src[3] = 'z'
+ * src[3] is not ASCII hexa decimal character, return negative value (-1).
+ *
+ * Return: For a string of hexa decimal ASCII characters return 0
+ *	   else -1 for bad input.
+ */
+static inline
+int qdf_hex_str_to_binary(u8 *dst, const char *src, size_t count)
+{
+	return __qdf_hex_str_to_binary(dst, src, count);
+}
+
+/**
+ * qdf_fls() - find last set bit in a given 32 bit input
+ * @x: 32 bit mask
+ *
+ * Return: zero if the input is zero, otherwise returns the bit
+ * position of the last set bit, where the LSB is 1 and MSB is 32.
+ */
+static inline
+int qdf_fls(uint32_t x)
+{
+	return __qdf_fls(x);
+}
+
 #endif /*_QDF_UTIL_H*/

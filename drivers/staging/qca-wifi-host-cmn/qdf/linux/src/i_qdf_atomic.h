@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -142,6 +133,29 @@ static inline void __qdf_atomic_set(__qdf_atomic_t *v, int i)
 static inline int32_t __qdf_atomic_inc_return(__qdf_atomic_t *v)
 {
 	return atomic_inc_return(v);
+}
+
+/**
+ * __qdf_atomic_dec_return() - return the decremented value of an atomic
+ * variable
+ * @v: A pointer to an opaque atomic variable
+ *
+ * Return: The current value of the variable
+ */
+static inline int32_t __qdf_atomic_dec_return(__qdf_atomic_t *v)
+{
+	return atomic_dec_return(v);
+}
+
+/**
+ * __qdf_atomic_inc_not_zero() - increment if not zero
+ * @v: A pointer to an opaque atomic variable
+ *
+ * Return: Returns non-zero on successful increment and zero otherwise
+ */
+static inline int32_t __qdf_atomic_inc_not_zero(__qdf_atomic_t *v)
+{
+	return atomic_inc_not_zero(v);
 }
 
 /**

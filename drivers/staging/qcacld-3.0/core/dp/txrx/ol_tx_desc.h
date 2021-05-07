@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 /**
  * @file ol_tx_desc.h
  * @brief API definitions for the tx descriptor module within the data SW.
@@ -32,7 +23,7 @@
 #ifndef _OL_TX_DESC__H_
 #define _OL_TX_DESC__H_
 
-#include <cds_queue.h>          /* TAILQ_HEAD */
+#include "queue.h"          /* TAILQ_HEAD */
 #include <qdf_nbuf.h>           /* qdf_nbuf_t */
 #include <cdp_txrx_cmn.h>       /* ol_txrx_vdev_t, etc. */
 #include <ol_txrx_internal.h>   /*TXRX_ASSERT2 */
@@ -98,7 +89,7 @@ ol_tx_desc_hl(
 
 
 /**
- * @brief Use a tx descriptor ID to find the corresponding desriptor object.
+ * @brief Use a tx descriptor ID to find the corresponding descriptor object.
  *
  * @param pdev - the data physical device sending the data
  * @param tx_desc_id - the ID of the descriptor in question
@@ -116,7 +107,7 @@ static inline struct ol_tx_desc_t *ol_tx_desc_find(
 }
 
 /**
- * @brief Use a tx descriptor ID to find the corresponding desriptor object
+ * @brief Use a tx descriptor ID to find the corresponding descriptor object
  *    and add sanity check.
  *
  * @param pdev - the data physical device sending the data
@@ -168,7 +159,7 @@ ol_tx_desc_find_check(struct ol_txrx_pdev_t *pdev, u_int16_t tx_desc_id)
  *  Free a batch of "standard" tx descriptors and their tx frames.
  *  Free each tx descriptor, by returning it to the freelist.
  *  Unmap each netbuf, and free the netbufs as a batch.
- *  Irregular tx frames like TSO or managment frames that require
+ *  Irregular tx frames like TSO or management frames that require
  *  special handling are processed by the ol_tx_desc_frame_free_nonstd
  *  function rather than this function.
  *
@@ -222,7 +213,7 @@ ol_tx_desc_id(struct ol_txrx_pdev_t *pdev, struct ol_tx_desc_t *tx_desc)
  * @return void pointer to the beacon header for the given vdev
  */
 
-void *ol_ath_get_bcn_header(ol_pdev_handle pdev, A_UINT32 vdev_id);
+void *ol_ath_get_bcn_header(struct cdp_cfg *cfg_pdev, A_UINT32 vdev_id);
 
 /*
  * @brief Free a tx descriptor, without freeing the matching frame.
@@ -298,6 +289,17 @@ void ol_tx_put_desc_global_pool(struct ol_txrx_pdev_t *pdev,
 
 
 #ifdef QCA_LL_TX_FLOW_CONTROL_V2
+
+#ifdef QCA_LL_TX_FLOW_CONTROL_RESIZE
+int ol_tx_distribute_descs_to_deficient_pools_from_global_pool(void);
+#else
+static inline
+int ol_tx_distribute_descs_to_deficient_pools_from_global_pool(void)
+{
+	return 0;
+}
+#endif
+
 int ol_tx_free_invalid_flow_pool(struct ol_tx_flow_pool_t *pool);
 /**
  * ol_tx_get_desc_flow_pool() - get descriptor from flow pool
@@ -357,8 +359,6 @@ void ol_tx_desc_dup_detect_init(struct ol_txrx_pdev_t *pdev, uint16_t pool_size)
 	uint16_t size = (pool_size >> DIV_BY_8) +
 		sizeof(*pdev->tx_desc.free_list_bitmap);
 	pdev->tx_desc.free_list_bitmap = qdf_mem_malloc(size);
-	if (!pdev->tx_desc.free_list_bitmap)
-		qdf_print("%s: malloc failed", __func__);
 }
 
 /**
@@ -395,8 +395,8 @@ void ol_tx_desc_dup_detect_set(struct ol_txrx_pdev_t *pdev,
 		return;
 
 	if (qdf_unlikely(msdu_id > pdev->tx_desc.pool_size)) {
-		qdf_print("%s: msdu_id %d > pool_size %d",
-			  __func__, msdu_id, pdev->tx_desc.pool_size);
+		qdf_print("msdu_id %d > pool_size %d",
+			  msdu_id, pdev->tx_desc.pool_size);
 		QDF_BUG(0);
 	}
 
@@ -404,7 +404,7 @@ void ol_tx_desc_dup_detect_set(struct ol_txrx_pdev_t *pdev,
 	if (qdf_unlikely(test)) {
 		uint16_t size = (pdev->tx_desc.pool_size >> DIV_BY_8) +
 			((pdev->tx_desc.pool_size & MOD_BY_8) ? 1 : 0);
-		qdf_print("duplicate msdu_id %d detected !!\n", msdu_id);
+		qdf_print("duplicate msdu_id %d detected!!", msdu_id);
 		qdf_trace_hex_dump(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
 		(void *)pdev->tx_desc.free_list_bitmap, size);
 		QDF_BUG(0);
@@ -429,8 +429,8 @@ void ol_tx_desc_dup_detect_reset(struct ol_txrx_pdev_t *pdev,
 		return;
 
 	if (qdf_unlikely(msdu_id > pdev->tx_desc.pool_size)) {
-		qdf_print("%s: msdu_id %d > pool_size %d",
-			  __func__, msdu_id, pdev->tx_desc.pool_size);
+		qdf_print("msdu_id %d > pool_size %d",
+			  msdu_id, pdev->tx_desc.pool_size);
 		QDF_BUG(0);
 	}
 

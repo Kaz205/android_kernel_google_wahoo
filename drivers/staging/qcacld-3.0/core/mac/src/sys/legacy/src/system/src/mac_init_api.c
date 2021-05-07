@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,12 +17,6 @@
  */
 
 /*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
-/*
  *
  * mac_init_api.c - This file has all the mac level init functions
  *                   for all the defined threads at system level.
@@ -38,137 +29,170 @@
  *
  */
 /* Standard include files */
-#include "cfg_api.h"             /* cfg_cleanup */
 #include "lim_api.h"             /* lim_cleanup */
 #include "sir_types.h"
 #include "sys_entry_func.h"
 #include "mac_init_api.h"
+#include "wlan_mlme_main.h"
+#include "wlan_psoc_mlme_api.h"
 
 #ifdef TRACE_RECORD
 #include "mac_trace.h"
 #endif
 
-static tAniSirGlobal global_mac_context;
+#ifdef WLAN_ALLOCATE_GLOBAL_BUFFERS_DYNAMICALLY
+static struct mac_context *global_mac_context;
 
-extern tSirRetStatus halDoCfgInit(tpAniSirGlobal pMac);
-extern tSirRetStatus halProcessStartEvent(tpAniSirGlobal pMac);
-
-tSirRetStatus mac_start(tHalHandle hHal, void *pHalMacStartParams)
+static inline struct mac_context *mac_allocate_context_buffer(void)
 {
-	tSirRetStatus status = eSIR_SUCCESS;
-	tpAniSirGlobal pMac = (tpAniSirGlobal) hHal;
+	global_mac_context = qdf_mem_malloc(sizeof(*global_mac_context));
 
-	if (NULL == pMac) {
+	return global_mac_context;
+}
+
+static inline void mac_free_context_buffer(void)
+{
+	qdf_mem_free(global_mac_context);
+	global_mac_context = NULL;
+}
+#else /* WLAN_ALLOCATE_GLOBAL_BUFFERS_DYNAMICALLY */
+static struct mac_context global_mac_context;
+
+static inline struct mac_context *mac_allocate_context_buffer(void)
+{
+	return &global_mac_context;
+}
+
+static inline void mac_free_context_buffer(void)
+{
+}
+#endif /* WLAN_ALLOCATE_GLOBAL_BUFFERS_DYNAMICALLY */
+
+QDF_STATUS mac_start(mac_handle_t mac_handle,
+		     struct mac_start_params *params)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	struct mac_context *mac = MAC_CONTEXT(mac_handle);
+
+	if (!mac || !params) {
 		QDF_ASSERT(0);
-		status = eSIR_FAILURE;
+		status = QDF_STATUS_E_FAILURE;
 		return status;
 	}
 
-	pMac->gDriverType =
-		((tHalMacStartParameters *) pHalMacStartParams)->driverType;
+	mac->gDriverType = params->driver_type;
 
-	if (ANI_DRIVER_TYPE(pMac) != QDF_DRIVER_TYPE_MFG) {
-		status = pe_start(pMac);
-	}
+	if (ANI_DRIVER_TYPE(mac) != QDF_DRIVER_TYPE_MFG)
+		status = pe_start(mac);
 
 	return status;
 }
 
-/** -------------------------------------------------------------
-   \fn mac_stop
-   \brief this function will be called from HDD to stop MAC. This function will stop all the mac modules.
- \       memory with global context will only be initialized not freed here.
-   \param   tHalHandle hHal
-   \param tHalStopType
-   \return tSirRetStatus
-   -------------------------------------------------------------*/
-
-QDF_STATUS mac_stop(tHalHandle hHal, tHalStopType stopType)
+QDF_STATUS mac_stop(mac_handle_t mac_handle)
 {
-	tpAniSirGlobal pMac = (tpAniSirGlobal) hHal;
+	struct mac_context *mac = MAC_CONTEXT(mac_handle);
 
-	pe_stop(pMac);
-	cfg_cleanup(pMac);
+	pe_stop(mac);
 
 	return QDF_STATUS_SUCCESS;
 }
 
-/** -------------------------------------------------------------
-   \fn mac_open
-   \brief this function will be called during init. This function is suppose to allocate all the
- \       memory with the global context will be allocated here.
-   \param   tHalHandle pHalHandle
-   \param   tHddHandle hHdd
-   \param   tHalOpenParameters* pHalOpenParams
-   \return tSirRetStatus
-   -------------------------------------------------------------*/
-
-tSirRetStatus mac_open(tHalHandle *pHalHandle, tHddHandle hHdd,
-		       struct cds_config_info *cds_cfg)
+QDF_STATUS mac_open(struct wlan_objmgr_psoc *psoc, mac_handle_t *mac_handle,
+		    hdd_handle_t hdd_handle, struct cds_config_info *cds_cfg)
 {
-	tpAniSirGlobal p_mac = &global_mac_context;
-	tSirRetStatus status = eSIR_SUCCESS;
+	struct mac_context *mac;
+	QDF_STATUS status;
+	struct wlan_mlme_psoc_ext_obj *mlme_ext_obj;
 
-	if (pHalHandle == NULL)
-		return eSIR_FAILURE;
-
-	/*
-	 * Set various global fields of p_mac here
-	 * (Could be platform dependant as some variables in p_mac are platform
-	 * dependant)
-	 */
-	p_mac->hHdd = hHdd;
-	*pHalHandle = (tHalHandle) p_mac;
-
-	{
-		/*
-		 * For Non-FTM cases this value will be reset during mac_start
-		 */
-		if (cds_cfg->driver_type)
-			p_mac->gDriverType = QDF_DRIVER_TYPE_MFG;
-
-		/* Call routine to initialize CFG data structures */
-		if (eSIR_SUCCESS != cfg_init(p_mac))
-			return eSIR_FAILURE;
-
-		sys_init_globals(p_mac);
-	}
-
-	/* FW: 0 to 2047 and Host: 2048 to 4095 */
-	p_mac->mgmtSeqNum = WLAN_HOST_SEQ_NUM_MIN - 1;
-	p_mac->first_scan_done = false;
-
-	status =  pe_open(p_mac, cds_cfg);
-	if (eSIR_SUCCESS != status) {
-		pe_err("pe_open() failure");
-		cfg_de_init(p_mac);
-	}
-
-	return status;
-}
-
-/** -------------------------------------------------------------
-   \fn mac_close
-   \brief this function will be called in shutdown sequence from HDD. All the
- \       allocated memory with global context will be freed here.
-   \param   tpAniSirGlobal pMac
-   \return none
-   -------------------------------------------------------------*/
-
-QDF_STATUS mac_close(tHalHandle hHal)
-{
-
-	tpAniSirGlobal pMac = (tpAniSirGlobal) hHal;
-
-	if (!pMac)
+	QDF_BUG(mac_handle);
+	if (!mac_handle)
 		return QDF_STATUS_E_FAILURE;
 
-	pe_close(pMac);
+	mac = mac_allocate_context_buffer();
+	if (!mac)
+		return QDF_STATUS_E_NOMEM;
 
-	/* Call routine to free-up all CFG data structures */
-	cfg_de_init(pMac);
+	/*
+	 * Set various global fields of mac here
+	 * (Could be platform dependent as some variables in mac are platform
+	 * dependent)
+	 */
+	mac->hdd_handle = hdd_handle;
 
-	qdf_mem_zero(pMac, sizeof(*pMac));
+	status = wlan_objmgr_psoc_try_get_ref(psoc, WLAN_LEGACY_MAC_ID);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		pe_err("PSOC get ref failure");
+		goto free_mac_context;
+	}
+
+	mac->psoc = psoc;
+	mlme_ext_obj = wlan_psoc_mlme_get_ext_hdl(psoc);
+	if (!mlme_ext_obj) {
+		pe_err("Failed to get MLME Obj");
+		status = QDF_STATUS_E_FAILURE;
+		goto release_psoc_ref;
+	}
+	mac->mlme_cfg = &mlme_ext_obj->cfg;
+
+	*mac_handle = MAC_HANDLE(mac);
+
+	/* For Non-FTM cases this value will be reset during mac_start */
+	if (cds_cfg->driver_type)
+		mac->gDriverType = QDF_DRIVER_TYPE_MFG;
+
+	sys_init_globals(mac);
+
+	/* FW: 0 to 2047 and Host: 2048 to 4095 */
+	mac->mgmtSeqNum = WLAN_HOST_SEQ_NUM_MIN - 1;
+	mac->he_sgi_ltf_cfg_bit_mask = DEF_HE_AUTO_SGI_LTF;
+	mac->is_usr_cfg_amsdu_enabled = true;
+
+	status = pe_open(mac, cds_cfg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		pe_err("failed to open PE; status:%u", status);
+		goto release_psoc_ref;
+	}
 
 	return QDF_STATUS_SUCCESS;
+
+release_psoc_ref:
+	wlan_objmgr_psoc_release_ref(psoc, WLAN_LEGACY_MAC_ID);
+
+free_mac_context:
+	mac_free_context_buffer();
+
+	return status;
+}
+
+QDF_STATUS mac_close(mac_handle_t mac_handle)
+{
+
+	struct mac_context *mac = MAC_CONTEXT(mac_handle);
+
+	if (!mac)
+		return QDF_STATUS_E_FAILURE;
+
+	pe_close(mac);
+
+	if (mac->pdev) {
+		wlan_objmgr_pdev_release_ref(mac->pdev, WLAN_LEGACY_MAC_ID);
+		mac->pdev = NULL;
+	}
+	wlan_objmgr_psoc_release_ref(mac->psoc, WLAN_LEGACY_MAC_ID);
+	mac->mlme_cfg = NULL;
+	mac->psoc = NULL;
+	qdf_mem_zero(mac, sizeof(*mac));
+	mac_free_context_buffer();
+
+	return QDF_STATUS_SUCCESS;
+}
+
+void mac_register_sesssion_open_close_cb(mac_handle_t mac_handle,
+					 csr_session_close_cb close_session,
+					 csr_roam_complete_cb callback)
+{
+	struct mac_context *mac = MAC_CONTEXT(mac_handle);
+
+	mac->session_close_cb = close_session;
+	mac->session_roam_complete_cb = callback;
 }

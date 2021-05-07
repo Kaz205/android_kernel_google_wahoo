@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**=========================================================================
@@ -60,7 +51,7 @@ typedef struct sSirFTPreAuthReq {
 	 * We expect only one response per request.
 	 */
 	bool bPreAuthRspProcessed;
-	uint8_t preAuthchannelNum;
+	uint16_t pre_auth_channel_freq;
 	/* BSSID currently associated to suspend the link */
 	tSirMacAddr currbssId;
 	tSirMacAddr preAuthbssId;       /* BSSID to preauth to */
@@ -68,7 +59,7 @@ typedef struct sSirFTPreAuthReq {
 	uint32_t scan_id;
 	uint16_t ft_ies_length;
 	uint8_t ft_ies[MAX_FTIE_SIZE];
-	tpSirBssDescription pbssDescription;
+	struct bss_description *pbssDescription;
 } tSirFTPreAuthReq, *tpSirFTPreAuthReq;
 
 /*-------------------------------------------------------------------------
@@ -77,9 +68,9 @@ typedef struct sSirFTPreAuthReq {
 typedef struct sSirFTPreAuthRsp {
 	uint16_t messageType;   /* eWNI_SME_FT_PRE_AUTH_RSP */
 	uint16_t length;
-	uint8_t smeSessionId;
+	uint8_t vdev_id;
 	tSirMacAddr preAuthbssId;       /* BSSID to preauth to */
-	tSirRetStatus status;
+	QDF_STATUS status;
 	uint16_t ft_ies_length;
 	uint8_t ft_ies[MAX_FTIE_SIZE];
 	uint16_t ric_ies_length;
@@ -92,7 +83,7 @@ typedef struct sSirFTPreAuthRsp {
 typedef struct sSirFTUpdateKeyInfo {
 	uint16_t messageType;
 	uint16_t length;
-	uint32_t smeSessionId;
+	uint32_t vdev_id;
 	struct qdf_mac_addr bssid;
 	tSirKeyMaterial keyMaterial;
 } tSirFTUpdateKeyInfo, *tpSirFTUpdateKeyInfo;
@@ -111,7 +102,7 @@ typedef struct sSirFTPreAuthKeyInfo {
    ------------------------------------------------------------------------*/
 typedef struct sFTPEContext {
 	tpSirFTPreAuthReq pFTPreAuthReq;        /* Saved FT Pre Auth Req */
-	tSirRetStatus ftPreAuthStatus;
+	QDF_STATUS ftPreAuthStatus;
 	uint16_t saved_auth_rsp_length;
 	uint8_t saved_auth_rsp[MAX_FTIE_SIZE];
 	tSirFTPreAuthKeyInfo PreAuthKeyInfo;
@@ -122,7 +113,7 @@ typedef struct sFTPEContext {
 	uint32_t smeSessionId;
 
 	/* This flag is required to indicate on which session the preauth
-	 * has taken place, since the auth reponse for preauth will come
+	 * has taken place, since the auth response for preauth will come
 	 * for a new BSSID for which there is no session yet. This flag
 	 * will be used to extract the session from the session preauth
 	 * has been initiated

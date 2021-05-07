@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef _OL_RX_DEFRAG_H_
 #define _OL_RX_DEFRAG_H_
 
@@ -36,7 +27,6 @@
 #include <ol_txrx_internal.h>
 #include <ol_txrx_dbg.h>
 
-#define DEFRAG_IEEE80211_ADDR_LEN    6
 #define DEFRAG_IEEE80211_KEY_LEN     8
 #define DEFRAG_IEEE80211_FCS_LEN     4
 

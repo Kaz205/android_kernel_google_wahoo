@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2015-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2015-2016, 2018-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -59,16 +50,14 @@ void wma_set_dbs_capability_ut(uint32_t dbs)
 	/* DBS list was not configured by the FW, so
 	 * for UT, we can configure a single entry
 	 */
-	if (wma->hw_mode.hw_mode_list == NULL) {
+	if (!wma->hw_mode.hw_mode_list) {
 		wma->num_dbs_hw_modes = 1;
 		wma->hw_mode.hw_mode_list =
 			qdf_mem_malloc(sizeof(*wma->hw_mode.hw_mode_list) *
 					wma->num_dbs_hw_modes);
-		if (!wma->hw_mode.hw_mode_list) {
-			WMA_LOGE("%s: Memory allocation failed for UT-DBS",
-					__func__);
+		if (!wma->hw_mode.hw_mode_list)
 			return;
-		}
+
 		wma->hw_mode.hw_mode_list[0] = 0x0000;
 	}
 

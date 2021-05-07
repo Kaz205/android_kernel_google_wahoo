@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -53,7 +44,6 @@
 
 /* Remove these macros when they get added to htt.h. */
 #ifndef HTT_TX_DESC_EXTENSION_GET
-#define HTT_TX_DESC_EXTENSION_OFFSET_BYTES 0
 #define HTT_TX_DESC_EXTENSION_OFFSET_DWORD 0
 #define HTT_TX_DESC_EXTENSION_M        0x10000000
 #define HTT_TX_DESC_EXTENSION_S        28
@@ -461,7 +451,7 @@ htt_tx_send_batch(htt_pdev_handle htt_pdev,
 /* The htt scheduler for queued packets in htt
  * htt when unable to send to HTC because of lack of resource
  * forms a nbuf queue which is flushed when tx completion event from
- * target is recieved
+ * target is received
  */
 
 void htt_tx_sched(htt_pdev_handle pdev);
@@ -522,7 +512,7 @@ extern const uint32_t htt_to_ce_pkt_type[];
 
 /**
  * Provide a constant to specify the offset of the HTT portion of the
- * HTT tx descriptor, to avoid having to export the descriptor defintion.
+ * HTT tx descriptor, to avoid having to export the descriptor definition.
  * The htt module checks internally that this exported offset is consistent
  * with the private tx descriptor definition.
  *
@@ -843,7 +833,7 @@ void htt_tx_desc_set_chanfreq(void *htt_tx_desc, uint16_t chanfreq)
 	*chanfreq_field_ptr = chanfreq;
 }
 
-#if defined(FEATURE_TSO)
+#if defined(FEATURE_TSO) && defined(HELIUMPLUS)
 void
 htt_tx_desc_fill_tso_info(htt_pdev_handle pdev, void *desc,
 	 struct qdf_tso_info_t *tso_info);

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2016, 2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -78,11 +69,8 @@ enum {
 	TRACE_CODE_SME_RX_HDD_EXIT_WOWL,
 	TRACE_CODE_SME_RX_HDD_SET_KEY,
 	TRACE_CODE_SME_RX_HDD_REMOVE_KEY,
-	TRACE_CODE_SME_RX_HDD_GET_STATS,
-	TRACE_CODE_SME_RX_HDD_GET_RSSI,
 	TRACE_CODE_SME_RX_HDD_GET_CNTRYCODE,
 	TRACE_CODE_SME_RX_HDD_SET_CNTRYCODE,
-	TRACE_CODE_SME_RX_HDD_CHANGE_CNTRYCODE,
 	TRACE_CODE_SME_RX_HDD_SET_CFGPRIVACY,
 	TRACE_CODE_SME_RX_HDD_NEIGHBOR_REPORTREQ,
 	TRACE_CODE_SME_RX_HDD_DBG_READREG,
@@ -140,9 +128,6 @@ enum {
 	TRACE_CODE_SME_RX_HDD_TDLS_DEL_PEER_STA,
 #endif
 	TRACE_CODE_SME_RX_HDD_PREF_NET_LIST,
-#ifdef FEATURE_WLAN_LPHB
-	TRACE_CODE_SME_RX_HDD_LPHB_CONFIG_REQ,
-#endif /* FEATURE_WLAN_LPHB */
 	TRACE_CODE_SME_RX_HDD_ROAM_DEL_PMKIDCACHE,
 	TRACE_CODE_SME_RX_HDD_SEND_MGMT_TX,
 	/*
@@ -154,5 +139,5 @@ enum {
 	TRACE_CODE_SME_RX_WMA_MSG,
 };
 
-void sme_trace_init(tpAniSirGlobal pMac);
+void sme_trace_init(struct mac_context *mac);
 #endif /* __SME_TRACE_H__ */

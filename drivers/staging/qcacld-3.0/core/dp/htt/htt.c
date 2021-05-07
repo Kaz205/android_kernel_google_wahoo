@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -46,6 +37,8 @@
 #include <ol_htt_tx_api.h>
 #include <cds_api.h>
 #include "hif.h"
+#include <cdp_txrx_handle.h>
+#include <ol_txrx_peer_find.h>
 
 #define HTT_HTC_PKT_POOL_INIT_SIZE 100  /* enough for a large A-MPDU */
 
@@ -77,13 +70,12 @@ struct htt_htc_pkt *htt_htc_pkt_alloc(struct htt_pdev_t *pdev)
 	}
 	HTT_TX_MUTEX_RELEASE(&pdev->htt_tx_mutex);
 
-	if (pkt == NULL)
+	if (!pkt)
 		pkt = qdf_mem_malloc(sizeof(*pkt));
 
-	if (!pkt) {
-		qdf_print("%s: HTC packet allocation failed\n", __func__);
+	if (!pkt)
 		return NULL;
-	}
+
 	htc_packet_set_magic_cookie(&(pkt->u.pkt.htc_pkt), 0);
 	return &pkt->u.pkt;     /* not actually a dereference */
 }
@@ -93,7 +85,7 @@ void htt_htc_pkt_free(struct htt_pdev_t *pdev, struct htt_htc_pkt *pkt)
 	struct htt_htc_pkt_union *u_pkt = (struct htt_htc_pkt_union *)pkt;
 
 	if (!u_pkt) {
-		qdf_print("%s: HTC packet is NULL\n", __func__);
+		qdf_print("HTC packet is NULL");
 		return;
 	}
 
@@ -227,8 +219,8 @@ htt_htc_tx_htt2_service_start(struct htt_pdev_t *pdev,
 {
 	QDF_STATUS status;
 
-	qdf_mem_set(connect_req, 0, sizeof(struct htc_service_connect_req));
-	qdf_mem_set(connect_resp, 0, sizeof(struct htc_service_connect_resp));
+	qdf_mem_zero(connect_req, sizeof(struct htc_service_connect_req));
+	qdf_mem_zero(connect_resp, sizeof(struct htc_service_connect_resp));
 
 	/* The same as HTT service but no RX. */
 	connect_req->EpCallbacks.pContext = pdev;
@@ -333,6 +325,31 @@ void htt_clear_bundle_stats(htt_pdev_handle pdev)
  *
  * Return: 0 for success or error code.
  */
+
+#if defined(QCN7605_SUPPORT) && defined(IPA_OFFLOAD)
+
+/* In case of QCN7605 with IPA offload only 2 CE
+ * are used for RFS
+ */
+static int
+htt_htc_attach_all(struct htt_pdev_t *pdev)
+{
+	if (htt_htc_attach(pdev, HTT_DATA_MSG_SVC))
+		goto flush_endpoint;
+
+	if (htt_htc_attach(pdev, HTT_DATA2_MSG_SVC))
+		goto flush_endpoint;
+
+	return 0;
+
+flush_endpoint:
+	htc_flush_endpoint(pdev->htc_pdev, ENDPOINT_0, HTC_TX_PACKET_TAG_ALL);
+
+	return -EIO;
+}
+
+#else
+
 static int
 htt_htc_attach_all(struct htt_pdev_t *pdev)
 {
@@ -352,6 +369,9 @@ flush_endpoint:
 
 	return -EIO;
 }
+
+#endif
+
 #else
 /**
  * htt_htc_attach_all() - Connect to HTC service for HTT
@@ -377,7 +397,7 @@ htt_htc_attach_all(struct htt_pdev_t *pdev)
  */
 htt_pdev_handle
 htt_pdev_alloc(ol_txrx_pdev_handle txrx_pdev,
-	   ol_pdev_handle ctrl_pdev,
+	   struct cdp_cfg *ctrl_pdev,
 	   HTC_HANDLE htc_pdev, qdf_device_t osdev)
 {
 	struct htt_pdev_t *pdev;
@@ -402,18 +422,28 @@ htt_pdev_alloc(ol_txrx_pdev_handle txrx_pdev,
 
 	/* for efficiency, store a local copy of the is_high_latency flag */
 	pdev->cfg.is_high_latency = ol_cfg_is_high_latency(pdev->ctrl_pdev);
+	/*
+	 * Credit reporting through HTT_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND
+	 * enabled or not.
+	 */
+	pdev->cfg.credit_update_enabled =
+		ol_cfg_is_credit_update_enabled(pdev->ctrl_pdev);
+
+	pdev->cfg.request_tx_comp = cds_is_ptp_rx_opt_enabled() ||
+		cds_is_packet_log_enabled();
+
 	pdev->cfg.default_tx_comp_req =
 			!ol_cfg_tx_free_at_download(pdev->ctrl_pdev);
 
 	pdev->cfg.is_full_reorder_offload =
 			ol_cfg_is_full_reorder_offload(pdev->ctrl_pdev);
-	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO,
+	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO_LOW,
 		  "full_reorder_offloaded %d",
 		  (int)pdev->cfg.is_full_reorder_offload);
 
 	pdev->cfg.ce_classify_enabled =
 		ol_cfg_is_ce_classify_enabled(ctrl_pdev);
-	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO,
+	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO_LOW,
 		  "ce_classify %d",
 		  pdev->cfg.ce_classify_enabled);
 
@@ -476,6 +506,13 @@ htt_attach(struct htt_pdev_t *pdev, int desc_pool_size)
 	if (ol_cfg_ipa_uc_offload_enabled(pdev->ctrl_pdev))
 		pdev->is_ipa_uc_enabled = true;
 
+	pdev->new_htt_format_enabled = false;
+	if (ol_cfg_is_htt_new_format_enabled(pdev->ctrl_pdev))
+		pdev->new_htt_format_enabled = true;
+
+	htc_enable_hdr_length_check(pdev->htc_pdev,
+				    pdev->new_htt_format_enabled);
+
 	ret = htt_tx_attach(pdev, desc_pool_size);
 	if (ret)
 		goto fail1;
@@ -502,7 +539,8 @@ htt_attach(struct htt_pdev_t *pdev, int desc_pool_size)
 		 */
 		pdev->download_len = 5000;
 
-		if (ol_cfg_tx_free_at_download(pdev->ctrl_pdev))
+		if (ol_cfg_tx_free_at_download(pdev->ctrl_pdev) &&
+		    !pdev->cfg.request_tx_comp)
 			pdev->tx_send_complete_part2 =
 						ol_tx_download_done_hl_free;
 		else
@@ -533,6 +571,13 @@ htt_attach(struct htt_pdev_t *pdev, int desc_pool_size)
 		ol_tx_target_credit_update(
 				pdev->txrx_pdev, ol_cfg_target_tx_credit(
 					pdev->ctrl_pdev));
+		DPTRACE(qdf_dp_trace_credit_record(QDF_HTT_ATTACH,
+			QDF_CREDIT_INC,
+			ol_cfg_target_tx_credit(pdev->ctrl_pdev),
+			qdf_atomic_read(&pdev->txrx_pdev->target_tx_credit),
+			qdf_atomic_read(&pdev->txrx_pdev->txq_grps[0].credit),
+			qdf_atomic_read(&pdev->txrx_pdev->txq_grps[1].credit)));
+
 	} else {
 		enum wlan_frm_fmt frm_type;
 
@@ -713,8 +758,8 @@ int htt_update_endpoint(struct htt_pdev_t *pdev,
 	int     rc = 0;
 
 	hif_ctx = cds_get_context(QDF_MODULE_ID_HIF);
-	if (qdf_unlikely(NULL == hif_ctx)) {
-		QDF_ASSERT(NULL != hif_ctx);
+	if (qdf_unlikely(!hif_ctx)) {
+		QDF_ASSERT(hif_ctx);
 		QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_ERROR,
 			  "%s:%d: assuming non-tx service.",
 			  __func__, __LINE__);
@@ -747,8 +792,8 @@ int htt_htc_attach(struct htt_pdev_t *pdev, uint16_t service_id)
 	struct htc_service_connect_resp response;
 	QDF_STATUS status;
 
-	qdf_mem_set(&connect, sizeof(connect), 0);
-	qdf_mem_set(&response, sizeof(response), 0);
+	qdf_mem_zero(&connect, sizeof(connect));
+	qdf_mem_zero(&response, sizeof(response));
 
 	connect.pMetaData = NULL;
 	connect.MetaDataLength = 0;
@@ -757,6 +802,8 @@ int htt_htc_attach(struct htt_pdev_t *pdev, uint16_t service_id)
 	connect.EpCallbacks.EpTxCompleteMultiple = NULL;
 	connect.EpCallbacks.EpRecv = htt_t2h_msg_handler;
 	connect.EpCallbacks.ep_resume_tx_queue = htt_tx_resume_handler;
+	connect.EpCallbacks.ep_padding_credit_update =
+					htt_tx_padding_credit_update_handler;
 
 	/* rx buffers currently are provided by HIF, not by EpRecvRefill */
 	connect.EpCallbacks.EpRecvRefill = NULL;
@@ -879,7 +926,7 @@ int htt_ipa_uc_attach(struct htt_pdev_t *pdev)
 	}
 
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_DEBUG, "%s: exit",
-		  __func__);
+		__func__);
 	return 0;               /* success */
 }
 
@@ -892,7 +939,7 @@ int htt_ipa_uc_attach(struct htt_pdev_t *pdev)
 void htt_ipa_uc_detach(struct htt_pdev_t *pdev)
 {
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_DEBUG, "%s: enter",
-		  __func__);
+		__func__);
 
 	/* TX IPA micro controller detach */
 	htt_tx_ipa_uc_detach(pdev);
@@ -901,7 +948,7 @@ void htt_ipa_uc_detach(struct htt_pdev_t *pdev)
 	htt_rx_ipa_uc_detach(pdev);
 
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_DEBUG, "%s: exit",
-		  __func__);
+		__func__);
 }
 
 int

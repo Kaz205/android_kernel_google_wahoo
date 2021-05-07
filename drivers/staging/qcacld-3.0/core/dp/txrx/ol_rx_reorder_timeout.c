@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 /*=== header file includes ===*/
 /* generic utilities */
 #include <qdf_nbuf.h>           /* qdf_nbuf_t, etc. */
@@ -34,6 +25,7 @@
 /* datapath internal interfaces */
 #include <ol_txrx_internal.h>   /* TXRX_ASSERT, etc. */
 #include <ol_rx_reorder.h>      /* ol_rx_reorder_flush, etc. */
+#include <ol_rx_reorder_timeout.h>
 
 #ifdef QCA_SUPPORT_OL_RX_REORDER_TIMEOUT
 

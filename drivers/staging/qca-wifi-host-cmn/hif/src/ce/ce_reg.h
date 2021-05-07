@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2015-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef __CE_REG_H__
@@ -213,6 +204,11 @@
 #define CE_DEBUG_SEL_LSB          (scn->target_ce_def->d_CE_DEBUG_SEL_LSB)
 #define CE_DEBUG_SEL_MASK         (scn->target_ce_def->d_CE_DEBUG_SEL_MASK)
 #define HOST_IE_ADDRESS           (scn->target_ce_def->d_HOST_IE_ADDRESS)
+#define HOST_IE_REG1_CE_LSB       (scn->target_ce_def->d_HOST_IE_REG1_CE_LSB)
+#define HOST_IE_ADDRESS_2         (scn->target_ce_def->d_HOST_IE_ADDRESS_2)
+#define HOST_IE_REG2_CE_LSB       (scn->target_ce_def->d_HOST_IE_REG2_CE_LSB)
+#define HOST_IE_ADDRESS_3         (scn->target_ce_def->d_HOST_IE_ADDRESS_3)
+#define HOST_IE_REG3_CE_LSB       (scn->target_ce_def->d_HOST_IE_REG3_CE_LSB)
 #define HOST_IS_ADDRESS           (scn->target_ce_def->d_HOST_IS_ADDRESS)
 
 #define SRC_WATERMARK_LOW_SET(x) \
@@ -266,15 +262,18 @@
 	(((x) << CE_WRAPPER_DEBUG_SEL_LSB) & CE_WRAPPER_DEBUG_SEL_MASK)
 #define CE_DEBUG_SEL_GET(x) (((x) & CE_DEBUG_SEL_MASK) >> CE_DEBUG_SEL_LSB)
 #define CE_DEBUG_SEL_SET(x) (((x) << CE_DEBUG_SEL_LSB) & CE_DEBUG_SEL_MASK)
+#define HOST_IE_REG1_CE_BIT(_ce_id) (1 << (_ce_id + HOST_IE_REG1_CE_LSB))
+#define HOST_IE_REG2_CE_BIT(_ce_id) (1 << (_ce_id + HOST_IE_REG2_CE_LSB))
+#define HOST_IE_REG3_CE_BIT(_ce_id) (1 << (_ce_id + HOST_IE_REG3_CE_LSB))
 
 uint32_t DEBUG_CE_SRC_RING_READ_IDX_GET(struct hif_softc *scn,
 		uint32_t CE_ctrl_addr);
 uint32_t DEBUG_CE_DEST_RING_READ_IDX_GET(struct hif_softc *scn,
 		uint32_t CE_ctrl_addr);
 
-#define BITS0_TO_31(val) ((uint32_t)((uint64_t)(paddr_rri_on_ddr)\
+#define BITS0_TO_31(val) ((uint32_t)((uint64_t)(val)\
 				     & (uint64_t)(0xFFFFFFFF)))
-#define BITS32_TO_35(val) ((uint32_t)(((uint64_t)(paddr_rri_on_ddr)\
+#define BITS32_TO_35(val) ((uint32_t)(((uint64_t)(val)\
 				     & (uint64_t)(0xF00000000))>>32))
 
 #define VADDR_FOR_CE(scn, CE_ctrl_addr)\

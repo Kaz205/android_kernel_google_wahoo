@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,19 +16,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 /**
  * DOC: qdf_defer.c
  * This file provides OS dependent deferred API's.
  */
 
 #include <linux/kernel.h>
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/workqueue.h>
 
@@ -48,7 +38,7 @@ void __qdf_defer_func(struct work_struct *work)
 {
 	__qdf_work_t *ctx = container_of(work, __qdf_work_t, work);
 
-	if (ctx->fn == NULL) {
+	if (!ctx->fn) {
 		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
 			  "No callback registered !!");
 		return;
@@ -57,30 +47,3 @@ void __qdf_defer_func(struct work_struct *work)
 }
 qdf_export_symbol(__qdf_defer_func);
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
-/**
- * __qdf_defer_delayed_func() - defer work handler
- * @dwork: Pointer to defer work
- *
- * Return: none
- */
-void
-__qdf_defer_delayed_func(struct work_struct *dwork)
-{
-	return;
-}
-#else
-void
-__qdf_defer_delayed_func(struct work_struct *dwork)
-{
-	__qdf_delayed_work_t  *ctx = container_of(dwork, __qdf_delayed_work_t,
-		 dwork.work);
-	if (ctx->fn == NULL) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "BugCheck: Callback is not initilized while creating delayed work queue");
-		return;
-	}
-	ctx->fn(ctx->arg);
-}
-#endif
-qdf_export_symbol(__qdf_defer_delayed_func);

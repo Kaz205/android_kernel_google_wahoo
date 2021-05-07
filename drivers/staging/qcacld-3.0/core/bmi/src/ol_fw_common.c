@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #include "ol_if_athvar.h"
@@ -71,7 +62,7 @@ static inline void ol_sdio_disable_sleep(struct ol_context *ol_ctx)
 #endif
 
 /**
- * ol_usb_extra_initialization() - USB extra initilization
+ * ol_usb_extra_initialization() - USB extra initialization
  * @ol_ctx: pointer to ol_context
  *
  * USB specific initialization after firmware download
@@ -112,9 +103,9 @@ QDF_STATUS ol_sdio_extra_initialization(struct ol_context *ol_ctx)
 
 	/* get the block sizes */
 	status = hif_get_config_item(scn,
-				HIF_DEVICE_GET_MBOX_BLOCK_SIZE,
+				HIF_DEVICE_GET_BLOCK_SIZE,
 				blocksizes, sizeof(blocksizes));
-	if (status != EOK) {
+	if (status) {
 		BMI_ERR("Failed to get block size info from HIF layer");
 		goto exit;
 	}
@@ -132,7 +123,7 @@ QDF_STATUS ol_sdio_extra_initialization(struct ol_context *ol_ctx)
 				4,
 				ol_ctx);
 
-	if (status != EOK) {
+	if (status) {
 		BMI_ERR("BMIWriteMemory for IO block size failed");
 		goto exit;
 	}
@@ -147,7 +138,7 @@ QDF_STATUS ol_sdio_extra_initialization(struct ol_context *ol_ctx)
 				4,
 				ol_ctx);
 
-		if (status != EOK) {
+		if (status) {
 			BMI_ERR("BMI write for yield limit failed\n");
 			goto exit;
 		}
@@ -159,13 +150,16 @@ QDF_STATUS ol_sdio_extra_initialization(struct ol_context *ol_ctx)
 			(uint8_t *)&param,
 			4,
 			ol_ctx);
-	if (status != EOK) {
+	if (status) {
 		BMI_ERR("BMIReadMemory for hi_acs_flags failed");
 		goto exit;
 	}
 
-	param |= (HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET |
-		HI_ACS_FLAGS_ALT_DATA_CREDIT_SIZE);
+	param |= HI_ACS_FLAGS_ALT_DATA_CREDIT_SIZE;
+
+	/* disable swap mailbox for FTM */
+	if (cds_get_conparam() != QDF_GLOBAL_FTM_MODE)
+		param |= HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET;
 
 	if (!cds_is_ptp_tx_opt_enabled())
 		param |= HI_ACS_FLAGS_SDIO_REDUCE_TX_COMPL_SET;

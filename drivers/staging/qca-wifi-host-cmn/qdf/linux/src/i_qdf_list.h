@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -47,9 +38,10 @@ typedef struct qdf_list_s {
 } __qdf_list_t;
 
 /**
- * __qdf_list_create() - Initialize list head
+ * __qdf_list_create() - Create qdf list and initialize list head
  * @list: object of list
  * @max_size: max size of the list
+ *
  * Return: none
  */
 static inline void __qdf_list_create(__qdf_list_t *list, uint32_t max_size)
@@ -59,5 +51,57 @@ static inline void __qdf_list_create(__qdf_list_t *list, uint32_t max_size)
 	list->max_size = max_size;
 }
 
-bool qdf_list_has_node(__qdf_list_t *list, __qdf_list_node_t *node);
+/**
+ * __qdf_list_size() - gives the size of the list
+ * @list: object of list
+ * Return: size of the list
+ */
+static inline uint32_t __qdf_list_size(__qdf_list_t *list)
+{
+	return list->count;
+}
+
+/**
+ * __qdf_list_max_size() - gives the max size of the list
+ * @list: object of list
+ * Return: max size of the list
+ */
+static inline uint32_t __qdf_list_max_size(__qdf_list_t *list)
+{
+	return list->max_size;
+}
+
+#define __QDF_LIST_ANCHOR(list) ((list).anchor)
+
+#define __QDF_LIST_NODE_INIT(prev_node, next_node) \
+	{ .prev = &(prev_node), .next = &(next_node), }
+
+#define __QDF_LIST_NODE_INIT_SINGLE(node) \
+	__QDF_LIST_NODE_INIT(node, node)
+
+#define __QDF_LIST_INIT(tail, head) \
+	{ .anchor = __QDF_LIST_NODE_INIT(tail, head), }
+
+#define __QDF_LIST_INIT_SINGLE(node) \
+	__QDF_LIST_INIT(node, node)
+
+#define __QDF_LIST_INIT_EMPTY(list) \
+	__QDF_LIST_INIT_SINGLE(list.anchor)
+
+#define __qdf_list_for_each(list_ptr, cursor, node_field) \
+	list_for_each_entry(cursor, &(list_ptr)->anchor, node_field)
+
+#define __qdf_list_for_each_del(list_ptr, cursor, next, node_field) \
+	list_for_each_entry_safe(cursor, next, &(list_ptr)->anchor, node_field)
+
+/**
+ * __qdf_init_list_head() - initialize list head
+ * @list_head: pointer to list head
+ *
+ * Return: none
+ */
+static inline void __qdf_init_list_head(__qdf_list_node_t *list_head)
+{
+	INIT_LIST_HEAD(list_head);
+}
 #endif

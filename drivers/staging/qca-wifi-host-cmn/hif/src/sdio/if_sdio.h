@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef __IF_SDIO_H__
 #define __IF_SDIO_H__
 
@@ -35,6 +26,7 @@
 #include <ol_if_athvar.h>
 #include <athdefs.h>
 #include "a_osapi.h"
+#include "pld_sdio.h"
 #include "hif_internal.h"
 
 
@@ -48,10 +40,6 @@
 struct hif_sdio_softc {
 	struct hif_softc ol_sc;
 	struct device *dev;
-	struct _NIC_DEV aps_osdev;
-	struct tasklet_struct intr_tq;  /* tasklet */
-
-	int irq;
 	/*
 	 * Guard changes to Target HW state and to software
 	 * structures that track hardware state.
@@ -79,11 +67,6 @@ static inline void athdiag_procfs_remove(void)
 }
 #endif
 
-#ifndef REMOVE_PKT_LOG
-extern int pktlogmod_init(void *context);
-extern void pktlogmod_exit(void *context);
-#endif
-
 #define DMA_MAPPING_ERROR(dev, addr) dma_mapping_error((dev), (addr))
 
 int ath_sdio_probe(void *context, void *hif_handle);
@@ -95,15 +78,24 @@ int ath_sdio_resume(void *context);
 void hif_init_qdf_ctx(qdf_device_t qdf_dev, void *ol_sc);
 void hif_deinit_qdf_ctx(void *ol_sc);
 
-int hif_sdio_device_inserted(struct device *dev,
-		const struct sdio_device_id *id);
+int hif_sdio_device_inserted(struct hif_softc *ol_sc,
+			     struct device *dev,
+			     const struct sdio_device_id *id);
 void hif_sdio_stop(struct hif_softc *hif_ctx);
 void hif_sdio_shutdown(struct hif_softc *hif_ctx);
-void hif_sdio_device_removed(struct sdio_func *func);
-int hif_device_suspend(struct device *dev);
-int hif_device_resume(struct device *dev);
+void hif_sdio_device_removed(struct hif_softc *hif_ctx, struct sdio_func *func);
+int hif_device_suspend(struct hif_softc *ol_sc, struct device *dev);
+int hif_device_resume(struct hif_softc *ol_sc, struct device *dev);
 void hif_register_tbl_attach(struct hif_softc *scn,
-						u32 hif_type);
+			     u32 hif_type);
 void target_register_tbl_attach(struct hif_softc *scn,
-						u32 target_type);
+				u32 target_type);
+void hif_enable_power_gating(void *hif_ctx);
+void hif_sdio_close(struct hif_softc *hif_sc);
+QDF_STATUS hif_sdio_open(struct hif_softc *hif_sc,
+			 enum qdf_bus_type bus_type);
+void hif_ar6k_fetch_target_regs(struct hif_sdio_dev *hif_device,
+				uint32_t *targregs);
+QDF_STATUS hif_reg_based_get_target_info(struct hif_opaque_softc *hif_ctx,
+					 struct bmi_target_info *targ_info);
 #endif /* __IF_SDIO_H__ */

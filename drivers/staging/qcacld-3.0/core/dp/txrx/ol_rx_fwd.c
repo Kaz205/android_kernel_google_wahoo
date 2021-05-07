@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /* standard header files */
@@ -52,7 +43,7 @@
 static inline void ol_ap_fwd_check(struct ol_txrx_vdev_t *vdev, qdf_nbuf_t msdu)
 {
 	struct ieee80211_frame *mac_header;
-	unsigned char tmp_addr[IEEE80211_ADDR_LEN];
+	unsigned char tmp_addr[QDF_MAC_ADDR_SIZE];
 	unsigned char type;
 	unsigned char subtype;
 	unsigned char fromds;
@@ -78,9 +69,8 @@ static inline void ol_ap_fwd_check(struct ol_txrx_vdev_t *vdev, qdf_nbuf_t msdu)
 	    ((tods != 1) || (fromds != 0)) ||
 	    qdf_mem_cmp
 		     (mac_header->i_addr3, vdev->mac_addr.raw,
-		     IEEE80211_ADDR_LEN)) {
-		ol_txrx_dbg("Exit: %s | Unnecessary to adjust mac header\n",
-			   __func__);
+		     QDF_MAC_ADDR_SIZE)) {
+		ol_txrx_dbg("Exit | Unnecessary to adjust mac header");
 	} else {
 		/* Flip the ToDs bit to FromDs */
 		mac_header->i_fc[1] &= 0xfe;
@@ -130,7 +120,7 @@ static inline void ol_rx_fwd_to_tx(struct ol_txrx_vdev_t *vdev, qdf_nbuf_t msdu)
 		}
 
 	/* Clear the msdu control block as it will be re-interpreted */
-	qdf_mem_set(msdu->cb, sizeof(msdu->cb), 0);
+	qdf_mem_zero(msdu->cb, sizeof(msdu->cb));
 	/* update any cb field expected by OL_TX_SEND */
 
 	msdu = OL_TX_SEND(vdev, msdu);
@@ -264,14 +254,17 @@ ol_rx_fwd_check(struct ol_txrx_vdev_t *vdev,
 /*
  * ol_get_intra_bss_fwd_pkts_count() - to get the total tx and rx packets
  *   that has been forwarded from txrx layer without going to upper layers.
+ * @soc_hdl: Datapath soc handle
  * @vdev_id: vdev id
  * @fwd_tx_packets: pointer to forwarded tx packets count parameter
  * @fwd_rx_packets: pointer to forwarded rx packets count parameter
  *
  * Return: status -> A_OK - success, A_ERROR - failure
  */
-A_STATUS ol_get_intra_bss_fwd_pkts_count(uint8_t vdev_id,
-		uint64_t *fwd_tx_packets, uint64_t *fwd_rx_packets)
+A_STATUS ol_get_intra_bss_fwd_pkts_count(struct cdp_soc_t *soc_hdl,
+					 uint8_t vdev_id,
+					 uint64_t *fwd_tx_packets,
+					 uint64_t *fwd_rx_packets)
 {
 	struct ol_txrx_vdev_t *vdev = NULL;
 

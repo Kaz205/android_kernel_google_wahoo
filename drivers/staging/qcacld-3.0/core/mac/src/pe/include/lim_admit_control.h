@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2012, 2014-2015 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2012, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -43,64 +34,61 @@
 
 #include "ani_global.h"
 
-tSirRetStatus
-lim_tspec_find_by_assoc_id(tpAniSirGlobal, uint16_t, tSirMacTspecIE *,
+QDF_STATUS
+lim_tspec_find_by_assoc_id(struct mac_context *, uint16_t,
+			   struct mac_tspec_ie *,
 			   tpLimTspecInfo, tpLimTspecInfo *);
 
 /* Add TSPEC in lim local table */
-tSirRetStatus lim_tspec_add(tpAniSirGlobal pMac,
+QDF_STATUS lim_tspec_add(struct mac_context *mac,
 			    uint8_t *pAddr,
 			    uint16_t assocId,
-			    tSirMacTspecIE *pTspec,
+			    struct mac_tspec_ie *pTspec,
 			    uint32_t interval, tpLimTspecInfo *ppInfo);
 
 /* admit control interface */
-extern tSirRetStatus lim_admit_control_add_ts(tpAniSirGlobal pMac,
-				uint8_t *pAddr, tSirAddtsReqInfo *addts,
-				tSirMacQosCapabilityStaIE *qos,
-				uint16_t assocId, uint8_t alloc,
-				tSirMacScheduleIE *pSch,
-				/* index to the lim tspec table. */
-				uint8_t *pTspecIdx,
-				tpPESession psessionEntry);
+QDF_STATUS lim_admit_control_add_ts(struct mac_context *mac,
+				    uint8_t *pAddr, tSirAddtsReqInfo *addts,
+				    tSirMacQosCapabilityStaIE *qos,
+				    uint16_t assocId, uint8_t alloc,
+				    tSirMacScheduleIE *pSch,
+				    /* index to the lim tspec table. */
+				    uint8_t *pTspecIdx,
+				    struct pe_session *pe_session);
 
-static inline tSirRetStatus
-lim_admit_control_add_sta(tpAniSirGlobal pMac, uint8_t *staAddr, uint8_t alloc)
+static inline QDF_STATUS
+lim_admit_control_add_sta(struct mac_context *mac, uint8_t *staAddr, uint8_t alloc)
 {
-	return eSIR_SUCCESS;
+	return QDF_STATUS_SUCCESS;
 }
 
-extern tSirRetStatus
-lim_admit_control_delete_sta(tpAniSirGlobal pMac, uint16_t assocId);
+QDF_STATUS
+lim_admit_control_delete_sta(struct mac_context *mac, uint16_t assocId);
 
-extern tSirRetStatus
-lim_admit_control_delete_ts(tpAniSirGlobal pMac,
+QDF_STATUS
+lim_admit_control_delete_ts(struct mac_context *mac,
 			    uint16_t assocId,
-			    tSirMacTSInfo *tsinfo,
+			    struct mac_ts_info *tsinfo,
 			    uint8_t *tsStatus, uint8_t *tspecIdx);
 
-extern tSirRetStatus lim_update_admit_policy(tpAniSirGlobal pMac);
-
-tSirRetStatus lim_admit_control_init(tpAniSirGlobal pMac);
+QDF_STATUS lim_admit_control_init(struct mac_context *mac);
 #ifdef FEATURE_WLAN_ESE
-tSirRetStatus lim_send_hal_msg_add_ts(tpAniSirGlobal pMac,
-				      uint16_t staIdx,
+QDF_STATUS lim_send_hal_msg_add_ts(struct mac_context *mac,
 				      uint8_t tspecIdx,
-				      tSirMacTspecIE tspecIE,
+				      struct mac_tspec_ie tspecIE,
 				      uint8_t sessionId, uint16_t tsm_interval);
 #else
-tSirRetStatus lim_send_hal_msg_add_ts(tpAniSirGlobal pMac,
-				      uint16_t staIdx,
+QDF_STATUS lim_send_hal_msg_add_ts(struct mac_context *mac,
 				      uint8_t tspecIdx,
-				      tSirMacTspecIE tspecIE,
+				      struct mac_tspec_ie tspecIE,
 				      uint8_t sessionId);
 #endif
 
-tSirRetStatus lim_send_hal_msg_del_ts(tpAniSirGlobal pMac,
-				      uint16_t staIdx,
+QDF_STATUS lim_send_hal_msg_del_ts(struct mac_context *mac,
 				      uint8_t tspecIdx,
-				      tSirDeltsReqInfo delts,
+				      struct delts_req_info delts,
 				      uint8_t sessionId, uint8_t *bssId);
-void lim_process_hal_add_ts_rsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg);
+void lim_process_hal_add_ts_rsp(struct mac_context *mac,
+				struct scheduler_msg *limMsg);
 
 #endif

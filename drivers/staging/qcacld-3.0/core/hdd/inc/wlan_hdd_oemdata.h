@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 /**
  * DOC: wlan_hdd_oemdata.h
  *
@@ -34,6 +25,13 @@
 #ifndef __WLAN_HDD_OEM_DATA_H__
 #define __WLAN_HDD_OEM_DATA_H__
 
+#include "wmi_unified_param.h"
+
+struct hdd_context;
+
+#ifdef FEATURE_OEM_DATA
+#define WLAN_WAIT_TIME_GET_OEM_DATA 1000
+#endif
 #ifdef FEATURE_OEM_DATA_SUPPORT
 
 #ifndef OEM_DATA_REQ_SIZE
@@ -53,7 +51,7 @@
 #define OEM_CAP_MAX_NUM_CHANNELS   128
 
 /**
- * typedef eOemErrorCode - OEM error codes
+ * enum oem_err_code - OEM error codes
  * @OEM_ERR_NULL_CONTEXT: %NULL context
  * @OEM_ERR_APP_NOT_REGISTERED: OEM App is not registered
  * @OEM_ERR_INVALID_SIGNATURE: Invalid signature
@@ -114,7 +112,6 @@ struct oem_data_cap {
 
 /**
  * struct hdd_channel_info - Channel information
- * @chan_id: channel id
  * @reserved0: reserved for padding and future use
  * @mhz: primary 20 MHz channel frequency in mhz
  * @band_center_freq1: Center frequency 1 in MHz
@@ -126,7 +123,6 @@ struct oem_data_cap {
  * @reg_info_2: regulatory information field 2 which contains antennamax
  */
 struct hdd_channel_info {
-	uint32_t chan_id;
 	uint32_t reserved0;
 	uint32_t mhz;
 	uint32_t band_center_freq1;
@@ -165,7 +161,7 @@ enum oem_capability_mask {
 };
 
 /**
- * struct oem_get_capability_rsp - capabilites set by userspace and target.
+ * struct oem_get_capability_rsp - capabilities set by userspace and target.
  * @target_cap: target capabilities
  * @client_capabilities: capabilities set by userspace via set request
  */
@@ -174,29 +170,128 @@ struct oem_get_capability_rsp {
 	struct sme_oem_capability cap;
 };
 
-void hdd_send_peer_status_ind_to_oem_app(struct qdf_mac_addr *peerMac,
-					 uint8_t peerStatus,
-					 uint8_t peerTimingMeasCap,
-					 uint8_t sessionId,
-					 tSirSmeChanInfo *chan_info,
-					 enum tQDF_ADAPTER_MODE dev_mode);
+/**
+ * hdd_send_peer_status_ind_to_oem_app() -
+ * Function to send peer status to a registered application
+ * @peer_mac: MAC address of peer
+ * @peer_status: ePeerConnected or ePeerDisconnected
+ * @peer_capability: 0: RTT/RTT2, 1: RTT3. Default is 0
+ * @vdev_id: vdev_id
+ * @chan_info: operating channel information
+ * @dev_mode: dev mode for which indication is sent
+ *
+ * Return: none
+ */
+void hdd_send_peer_status_ind_to_oem_app(struct qdf_mac_addr *peer_mac,
+					 uint8_t peer_status,
+					 uint8_t peer_capability,
+					 uint8_t vdev_id,
+					 struct oem_channel_info *chan_info,
+					 enum QDF_OPMODE dev_mode);
 
 int iw_get_oem_data_cap(struct net_device *dev, struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra);
 
-int oem_activate_service(struct hdd_context_s *hdd_ctx);
+/**
+ * oem_activate_service() - API to register the oem command handler
+ * @hdd_ctx: Pointer to HDD Context
+ *
+ * This API is used to register the handler to receive netlink message
+ * from an OEM application process
+ *
+ * Return: 0 on success and errno on failure
+ */
+int oem_activate_service(struct hdd_context *hdd_ctx);
+
+/**
+ * oem_deactivate_service() - API to unregister the oem command handler
+ *
+ * This API is used to deregister the handler to receive netlink message
+ * from an OEM application process
+ *
+ * Return: 0 on success and errno on failure
+ */
+int oem_deactivate_service(void);
 
 void hdd_send_oem_data_rsp_msg(struct oem_data_rsp *oem_rsp);
-void hdd_update_channel_bw_info(hdd_context_t *hdd_ctx,
-				uint16_t chan,
+
+/**
+ * update_channel_bw_info() - set bandwidth info for the chan
+ * @hdd_ctx: hdd context
+ * @chan_freq: channel freq for which info are required
+ * @chan_info: struct where the bandwidth info is filled
+ *
+ * This function finds the maximum bandwidth allowed, secondary
+ * channel offset and center freq for the channel as per regulatory
+ * domain and uses these info calculate the phy mode for the
+ * channel.
+ *
+ * Return: void
+ */
+void hdd_update_channel_bw_info(struct hdd_context *hdd_ctx,
+				uint32_t chan_freq,
 				void *hdd_chan_info);
 #else
-static inline int oem_activate_service(struct hdd_context_s *hdd_ctx)
+static inline int oem_activate_service(struct hdd_context *hdd_ctx)
 {
 	return 0;
 }
-static inline void hdd_update_channel_bw_info(hdd_context_t *hdd_ctx,
-					      uint16_t chan,
+
+static inline int oem_deactivate_service(void)
+{
+	return 0;
+}
+
+static inline void hdd_send_oem_data_rsp_msg(void *oem_rsp) {}
+
+static inline void hdd_update_channel_bw_info(struct hdd_context *hdd_ctx,
+					      uint32_t chan_freq,
 					      void *hdd_chan_info) {}
 #endif /* FEATURE_OEM_DATA_SUPPORT */
+
+#ifdef FEATURE_OEM_DATA
+#define OEM_DATA_MAX_SIZE 1024
+/**
+ * wlan_hdd_cfg80211_oem_data_handler() - the handler for oem data
+ * @wiphy: wiphy structure pointer
+ * @wdev: Wireless device structure pointer
+ * @data: Pointer to the data received
+ * @data_len: Length of @data
+ *
+ * Return: 0 on success; errno on failure
+ */
+int wlan_hdd_cfg80211_oem_data_handler(struct wiphy *wiphy,
+				       struct wireless_dev *wdev,
+				       const void *data, int data_len);
+
+#define FEATURE_OEM_DATA_VENDOR_COMMANDS                        \
+{                                                               \
+	.info.vendor_id = QCA_NL80211_VENDOR_ID,                \
+	.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_OEM_DATA,      \
+	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |                   \
+		WIPHY_VENDOR_CMD_NEED_NETDEV |                  \
+		WIPHY_VENDOR_CMD_NEED_RUNNING,                  \
+	.doit = wlan_hdd_cfg80211_oem_data_handler              \
+},
+#else
+#define FEATURE_OEM_DATA_VENDOR_COMMANDS
+#endif
+
+#ifdef FEATURE_OEM_DATA
+/**
+ * hdd_oem_event_handler_cb() - callback for oem data event
+ * @oem_event_data: oem data received in the event from the FW
+ * @vdev_id: vdev id
+ *
+ * Return: None
+ */
+void hdd_oem_event_handler_cb(const struct oem_data *oem_event_data,
+			      uint8_t vdev_id);
+#else
+static inline void hdd_oem_event_handler_cb(void *oem_event_data,
+					    uint8_t vdev_id)
+{
+}
+#endif
+
 #endif /* __WLAN_HDD_OEM_DATA_H__ */

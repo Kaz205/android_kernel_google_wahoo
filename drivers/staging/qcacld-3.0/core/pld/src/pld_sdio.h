@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,14 +24,20 @@
 #endif
 #include "pld_common.h"
 
+#ifdef DYNAMIC_SINGLE_CHIP
+#define PREFIX DYNAMIC_SINGLE_CHIP "/"
+#else
+
 #ifdef MULTI_IF_NAME
 #define PREFIX MULTI_IF_NAME "/"
 #else
 #define PREFIX ""
 #endif
 
+#endif
+
 #define PLD_QCA9377_REV1_1_VERSION          0x5020001
-#define TOTAL_DUMP_SIZE                     0x0200000
+#define PLD_QCA9379_REV1_VERSION            0x5040000
 
 #ifndef CONFIG_CNSS
 #define PLD_AR6004_VERSION_REV1_3           0x31c8088a
@@ -45,26 +51,6 @@
 #define PLD_AR6320_DEV_VERSION              0x1000000
 
 
-struct pld_fw_files fw_files_qca6174_fw_1_1 = {
-	PREFIX "qwlan11.bin", PREFIX  "bdwlan11.bin", PREFIX "otp11.bin",
-	PREFIX  "utf11.bin", PREFIX "utfbd11.bin", PREFIX "qsetup11.bin",
-	PREFIX "epping11.bin", ""};
-struct pld_fw_files fw_files_qca6174_fw_2_0 = {
-	PREFIX "qwlan20.bin", PREFIX "bdwlan20.bin", PREFIX "otp20.bin",
-	PREFIX "utf20.bin", PREFIX "utfbd20.bin", PREFIX "qsetup20.bin",
-	PREFIX "epping20.bin", ""};
-struct pld_fw_files fw_files_qca6174_fw_1_3 = {
-	PREFIX "qwlan13.bin", PREFIX "bdwlan13.bin", PREFIX "otp13.bin",
-	PREFIX "utf13.bin", PREFIX "utfbd13.bin", PREFIX "qsetup13.bin",
-	PREFIX "epping13.bin", ""};
-struct pld_fw_files fw_files_qca6174_fw_3_0 = {
-	PREFIX "qwlan30.bin", PREFIX "bdwlan30.bin", PREFIX "otp30.bin",
-	PREFIX "utf30.bin", PREFIX "utfbd30.bin", PREFIX "qsetup30.bin",
-	PREFIX "epping30.bin", PREFIX "qwlan30i.bin"};
-struct pld_fw_files fw_files_default = {
-	PREFIX "qwlan.bin", PREFIX "bdwlan.bin", PREFIX "otp.bin",
-	PREFIX "utf.bin", PREFIX "utfbd.bin", PREFIX "qsetup.bin",
-	PREFIX "epping.bin", ""};
 #endif
 
 #ifndef CONFIG_SDIO
@@ -94,11 +80,20 @@ int pld_sdio_register_driver(void);
 void pld_sdio_unregister_driver(void);
 int pld_sdio_get_fw_files_for_target(struct pld_fw_files *pfw_files,
 				     u32 target_type, u32 target_version);
+#ifdef CONFIG_CNSS
 static inline uint8_t *pld_sdio_get_wlan_mac_address(struct device *dev,
 						     uint32_t *num)
 {
 	return cnss_common_get_wlan_mac_address(dev, num);
 }
+#else
+static inline uint8_t *pld_sdio_get_wlan_mac_address(struct device *dev,
+						     uint32_t *num)
+{
+	*num = 0;
+	return NULL;
+}
+#endif
 #endif
 
 #ifdef CONFIG_PLD_SDIO_CNSS
@@ -106,6 +101,10 @@ static inline void *pld_sdio_get_virt_ramdump_mem(struct device *dev,
 		unsigned long *size)
 {
 	return cnss_common_get_virt_ramdump_mem(dev, size);
+}
+
+static inline void pld_sdio_release_virt_ramdump_mem(void *address)
+{
 }
 
 static inline void pld_sdio_device_crashed(struct device *dev)
@@ -121,11 +120,34 @@ static inline void pld_sdio_device_self_recovery(struct device *dev)
 {
 	cnss_common_device_self_recovery(dev);
 }
+
+static inline bool pld_sdio_platform_driver_support(void)
+{
+	return true;
+}
 #else
 static inline void *pld_sdio_get_virt_ramdump_mem(struct device *dev,
 		unsigned long *size)
 {
-	return NULL;
+	size_t length = 0;
+	int flags = GFP_KERNEL;
+
+	length = TOTAL_DUMP_SIZE;
+
+	if (!size)
+		return NULL;
+
+	*size = (unsigned long)length;
+
+	if (in_interrupt() || irqs_disabled() || in_atomic())
+		flags = GFP_ATOMIC;
+
+	return kzalloc(length, flags);
+}
+
+static inline void pld_sdio_release_virt_ramdump_mem(void *address)
+{
+	kfree(address);
 }
 
 static inline void pld_sdio_device_crashed(struct device *dev)
@@ -139,8 +161,136 @@ static inline bool pld_sdio_is_fw_dump_skipped(void)
 static inline void pld_sdio_device_self_recovery(struct device *dev)
 {
 }
+
+static inline bool pld_sdio_platform_driver_support(void)
+{
+	return false;
+}
 #endif
-void *pld_hif_sdio_get_virt_ramdump_mem(struct device *dev,
-						unsigned long *size);
-void pld_hif_sdio_release_ramdump_mem(unsigned long *address);
+
+#ifdef CONFIG_PLD_SDIO_CNSS
+/**
+ * pld_hif_sdio_get_virt_ramdump_mem() - Get virtual ramdump memory
+ * @dev: device
+ * @size: buffer to virtual memory size
+ *
+ * Return: virtual ramdump memory address
+ */
+static inline void *pld_hif_sdio_get_virt_ramdump_mem(struct device *dev,
+						unsigned long *size)
+{
+	return cnss_common_get_virt_ramdump_mem(dev, size);
+}
+
+/**
+ * pld_hif_sdio_release_ramdump_mem() - Release virtual ramdump memory
+ * @address: virtual ramdump memory address
+ *
+ * Return: void
+ */
+static inline void pld_hif_sdio_release_ramdump_mem(unsigned long *address)
+{
+}
+#else
+#ifdef CONFIG_PLD_SDIO_CNSS2
+#include <net/cnss2.h>
+
+/**
+ * pld_sdio_get_sdio_al_client_handle() - Get the sdio al client handle
+ * @func: SDIO function pointer
+ *
+ * Return: On success return client handle from al via cnss, else NULL
+ */
+static inline struct sdio_al_client_handle *pld_sdio_get_sdio_al_client_handle
+(
+struct sdio_func *func
+)
+{
+	if (!func)
+		return NULL;
+
+	return cnss_sdio_wlan_get_sdio_al_client_handle(func);
+}
+
+/**
+ * pld_sdio_register_sdio_al_channel() - Register channel with sdio al
+ * @al_client: SDIO al client handle
+ * @ch_data: SDIO client channel data
+ *
+ * Return: Channel handle on success, else null
+ */
+static inline struct sdio_al_channel_handle *pld_sdio_register_sdio_al_channel
+(
+struct sdio_al_client_handle *al_client,
+struct sdio_al_channel_data *ch_data
+)
+{
+	if (!al_client || !ch_data)
+		return NULL;
+
+	return cnss_sdio_wlan_register_sdio_al_channel(ch_data);
+}
+
+/**
+ * pld_sdio_unregister_sdio_al_channel() - Unregister the sdio al channel
+ * @ch_handle: SDIO al channel handle
+ *
+ * Return: None
+ */
+static inline void pld_sdio_unregister_sdio_al_channel
+(
+struct sdio_al_channel_handle *ch_handle
+)
+{
+	cnss_sdio_wlan_unregister_sdio_al_channel(ch_handle);
+}
+
+int pld_sdio_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
+			 enum pld_driver_mode mode, const char *host_version);
+#else
+static inline int pld_sdio_wlan_enable(struct device *dev,
+				       struct pld_wlan_enable_cfg *config,
+				       enum pld_driver_mode mode,
+				       const char *host_version)
+{
+	return 0;
+}
+#endif /* CONFIG_PLD_SDIO_CNSS2 */
+
+/**
+ * pld_hif_sdio_get_virt_ramdump_mem() - Get virtual ramdump memory
+ * @dev: device
+ * @size: buffer to virtual memory size
+ *
+ * Return: virtual ramdump memory address
+ */
+static inline void *pld_hif_sdio_get_virt_ramdump_mem(struct device *dev,
+						unsigned long *size)
+{
+	size_t length = 0;
+	int flags = GFP_KERNEL;
+
+	length = TOTAL_DUMP_SIZE;
+
+	if (size)
+		*size = (unsigned long)length;
+
+	if (in_interrupt() || irqs_disabled() || in_atomic())
+		flags = GFP_ATOMIC;
+
+	return kzalloc(length, flags);
+}
+
+/**
+ * pld_hif_sdio_release_ramdump_mem() - Release virtual ramdump memory
+ * @address: virtual ramdump memory address
+ *
+ * Return: void
+ */
+static inline void pld_hif_sdio_release_ramdump_mem(unsigned long *address)
+{
+	if (address)
+		kfree(address);
+}
+#endif
 #endif

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -44,139 +35,77 @@
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS csr_msg_processor(tpAniSirGlobal mac_ctx, void *msg_buf)
+QDF_STATUS csr_msg_processor(struct mac_context *mac_ctx, void *msg_buf)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	tSirSmeRsp *sme_rsp = (tSirSmeRsp *) msg_buf;
-#ifdef FEATURE_WLAN_SCAN_PNO
-	tSirMbMsg *msg = (tSirMbMsg *) msg_buf;
-	tCsrRoamSession *session;
-#endif
-	uint8_t session_id = sme_rsp->sessionId;
-	eCsrRoamState cur_state = mac_ctx->roam.curState[session_id];
+	uint8_t vdev_id = sme_rsp->vdev_id;
+	enum csr_roam_state cur_state;
 
+	cur_state = sme_get_current_roam_state(MAC_HANDLE(mac_ctx), vdev_id);
 	sme_debug("msg %d[0x%04X] recvd in curstate %s & substate %s id(%d)",
 		sme_rsp->messageType, sme_rsp->messageType,
 		mac_trace_getcsr_roam_state(cur_state),
 		mac_trace_getcsr_roam_sub_state(
-			mac_ctx->roam.curSubState[session_id]),
-		session_id);
-
-#ifdef FEATURE_WLAN_SCAN_PNO
-	/*
-	 * PNO scan responses have to be handled irrespective of CSR roam state.
-	 * Check if PNO has been started & only then process the PNO scan result
-	 * Also note that normal scan isn't allowed when PNO scan is in progress
-	 * and so the scan responses reaching here when PNO is started must be
-	 * PNO responses. For normal scan, the PNO started flag will be false
-	 * and it'll be processed as usual based on the current CSR roam state.
-	 */
-	session = CSR_GET_SESSION(mac_ctx, session_id);
-	if (!session) {
-		sme_err("session %d not found, msgType: %d",
-			session_id, msg->type);
-		return QDF_STATUS_E_FAILURE;
-	}
-
-	if (eWNI_SME_SCAN_RSP == msg->type) {
-		status = csr_scanning_state_msg_processor(mac_ctx, msg_buf);
-		if (QDF_STATUS_SUCCESS != status)
-			sme_err("handling PNO scan resp 0x%X CSR state %d",
-				sme_rsp->messageType, cur_state);
-		return status;
-	}
-#endif
+			mac_ctx->roam.curSubState[vdev_id]), vdev_id);
 
 	/* Process the message based on the state of the roaming states... */
-#if defined(ANI_RTT_DEBUG)
-	if (!pAdapter->fRttModeEnabled) {
-#endif
-		switch (cur_state) {
-		case eCSR_ROAMING_STATE_JOINED:
-			/* are we in joined state */
-			csr_roam_joined_state_msg_processor(mac_ctx, msg_buf);
-			break;
-		case eCSR_ROAMING_STATE_JOINING:
-			/* are we in roaming states */
-#if defined(ANI_EMUL_ASSOC)
-			emulRoamingStateMsgProcessor(pAdapter, pMBBufHdr);
-#endif
-			csr_roaming_state_msg_processor(mac_ctx, msg_buf);
-			break;
+	switch (cur_state) {
+	case eCSR_ROAMING_STATE_JOINED:
+		/* are we in joined state */
+		csr_roam_joined_state_msg_processor(mac_ctx, msg_buf);
+		break;
+	case eCSR_ROAMING_STATE_JOINING:
+		/* are we in roaming states */
+		csr_roaming_state_msg_processor(mac_ctx, msg_buf);
+		break;
 
-		default:
-			if (sme_rsp->messageType ==
-			    eWNI_SME_GET_STATISTICS_RSP) {
-				csr_roam_joined_state_msg_processor(mac_ctx,
-								    msg_buf);
-				break;
+	default:
+
+		if (sme_rsp->messageType ==
+		    eWNI_SME_UPPER_LAYER_ASSOC_CNF) {
+			tSirSmeAssocIndToUpperLayerCnf *upper_layer_assoc_cnf =
+				(tSirSmeAssocIndToUpperLayerCnf *)msg_buf;
+			if (upper_layer_assoc_cnf->ies) {
+				qdf_mem_free(upper_layer_assoc_cnf->ies);
+				sme_debug("free ies");
 			}
+			break;
+		}
 
-			/*
-			 * For all other messages, we ignore it
-			 * To work-around an issue where checking for set/remove
-			 * key base on connection state is no longer workable
-			 * due to failure or finding the condition meets both
-			 * SAP and infra/IBSS requirement.
-			 */
-			if (eWNI_SME_SETCONTEXT_RSP == sme_rsp->messageType) {
-				sme_warn("handling msg 0x%X CSR state is %d",
-					sme_rsp->messageType, cur_state);
-				csr_roam_check_for_link_status_change(mac_ctx,
-						sme_rsp);
-			} else if (eWNI_SME_GET_RSSI_REQ ==
+		/*
+		 * For all other messages, we ignore it
+		 * To work-around an issue where checking for set/remove
+		 * key base on connection state is no longer workable
+		 * due to failure or finding the condition meets both
+		 * SAP and infra/IBSS requirement.
+		 */
+		if (eWNI_SME_SETCONTEXT_RSP == sme_rsp->messageType ||
+		    eWNI_SME_DISCONNECT_DONE_IND ==
+		    sme_rsp->messageType) {
+			sme_warn("handling msg 0x%X CSR state is %d",
+				sme_rsp->messageType, cur_state);
+			csr_roam_check_for_link_status_change(mac_ctx,
+					sme_rsp);
+		} else {
+			sme_err("Message 0x%04X is not handled by CSR state is %d session Id %d",
+				sme_rsp->messageType, cur_state,
+				vdev_id);
+
+			if (eWNI_SME_FT_PRE_AUTH_RSP ==
 					sme_rsp->messageType) {
-				tAniGetRssiReq *pGetRssiReq =
-					(tAniGetRssiReq *) msg_buf;
-				if (NULL == pGetRssiReq->rssiCallback) {
-					sme_err("rssiCallback is NULL");
-					return status;
-				}
-				((tCsrRssiCallback)(pGetRssiReq->rssiCallback))(
-						pGetRssiReq->lastRSSI,
-						pGetRssiReq->staId,
-						pGetRssiReq->pDevContext);
-			} else {
-				sme_err("Message 0x%04X is not handled by CSR state is %d session Id %d",
-					sme_rsp->messageType, cur_state,
-					session_id);
-
-				if (eWNI_SME_FT_PRE_AUTH_RSP ==
-						sme_rsp->messageType) {
-					sme_err("Dequeue eSmeCommandRoam command with reason eCsrPerformPreauth");
-					csr_dequeue_roam_command(mac_ctx,
-						eCsrPerformPreauth);
-				} else if (eWNI_SME_REASSOC_RSP ==
-						sme_rsp->messageType) {
-					sme_err("Dequeue eSmeCommandRoam command with reason eCsrSmeIssuedFTReassoc");
-					csr_dequeue_roam_command(mac_ctx,
-						eCsrSmeIssuedFTReassoc);
-				}
+				sme_err("Dequeue eSmeCommandRoam command with reason eCsrPerformPreauth");
+				csr_dequeue_roam_command(mac_ctx,
+					eCsrPerformPreauth, vdev_id);
+			} else if (eWNI_SME_REASSOC_RSP ==
+					sme_rsp->messageType) {
+				sme_err("Dequeue eSmeCommandRoam command with reason eCsrSmeIssuedFTReassoc");
+				csr_dequeue_roam_command(mac_ctx,
+					eCsrSmeIssuedFTReassoc,
+					vdev_id);
 			}
-			break;
-		} /* switch */
-#if defined(ANI_RTT_DEBUG)
-	}
-#endif
+		}
+		break;
+	} /* switch */
 	return status;
 }
-
-bool csr_check_ps_ready(void *pv)
-{
-	tpAniSirGlobal pMac = PMAC_STRUCT(pv);
-
-	if (pMac->roam.sPendingCommands < 0) {
-		QDF_ASSERT(pMac->roam.sPendingCommands >= 0);
-		return 0;
-	}
-	return pMac->roam.sPendingCommands == 0;
-}
-
-bool csr_check_ps_offload_ready(void *pv, uint32_t sessionId)
-{
-	tpAniSirGlobal pMac = PMAC_STRUCT(pv);
-
-	QDF_ASSERT(pMac->roam.sPendingCommands >= 0);
-	return pMac->roam.sPendingCommands == 0;
-}
-

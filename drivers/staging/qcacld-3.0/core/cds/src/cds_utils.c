@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*============================================================================
@@ -67,7 +58,6 @@
  * Preprocessor Definitions and Constants
  * -------------------------------------------------------------------------*/
 #define AAD_LEN 20
-#define IV_SIZE_AES_128 16
 #define CMAC_IPN_LEN 6
 #define CMAC_TLEN 8             /* CMAC TLen = 64 bits (8 octets) */
 #define GMAC_NONCE_LEN 12
@@ -191,90 +181,6 @@ static void cds_cmac_calc_mic(struct crypto_cipher *tfm,
 }
 #endif
 
-/*--------------------------------------------------------------------------
-
-   \brief cds_crypto_init() - Initializes Crypto module
-
-   The cds_crypto_init() function initializes Crypto module.
-
-   \param phCryptProv - pointer to the Crypt handle
-
-   \return QDF_STATUS_SUCCESS - Successfully generated random memory.
-
-   QDF_STATUS_E_FAULT  - pbBuf is an invalid pointer.
-
-   QDF_STATUS_E_FAILURE - default return value if it fails due to
-   unknown reasons
-
-   ***QDF_STATUS_E_RESOURCES - System resources (other than memory)
-   are unavailable
-   \sa
-
-    ( *** return value not considered yet )
-   --------------------------------------------------------------------------*/
-QDF_STATUS cds_crypto_init(uint32_t *phCryptProv)
-{
-	QDF_STATUS uResult = QDF_STATUS_E_FAILURE;
-
-	/* This implementation doesn't require a crypto context */
-	*phCryptProv = 0;
-	uResult = QDF_STATUS_SUCCESS;
-	return uResult;
-}
-
-QDF_STATUS cds_crypto_deinit(uint32_t hCryptProv)
-{
-	QDF_STATUS uResult = QDF_STATUS_E_FAILURE;
-
-	/* CryptReleaseContext succeeded */
-	uResult = QDF_STATUS_SUCCESS;
-
-	return uResult;
-}
-
-/*--------------------------------------------------------------------------
-
-   \brief cds_rand_get_bytes() - Generates random byte
-
-   The cds_rand_get_bytes() function generate random bytes.
-
-   Buffer should be allocated before calling cds_rand_get_bytes().
-
-   Attempting to initialize an already initialized lock results in
-   a failure.
-
-   \param lock - pointer to the opaque lock object to initialize
-
-   \return QDF_STATUS_SUCCESS - Successfully generated random memory.
-
-   QDF_STATUS_E_FAULT  - pbBuf is an invalid pointer.
-
-   QDF_STATUS_E_FAILURE - default return value if it fails due to
-   unknown reasons
-
-  ***QDF_STATUS_E_RESOURCES - System resources (other than memory)
-  are unavailable
-   \sa
-
-    ( *** return value not considered yet )
-   --------------------------------------------------------------------------*/
-QDF_STATUS
-cds_rand_get_bytes(uint32_t cryptHandle, uint8_t *pbBuf, uint32_t numBytes)
-{
-	QDF_STATUS uResult = QDF_STATUS_E_FAILURE;
-
-	/* check for invalid pointer */
-	if (NULL == pbBuf) {
-		uResult = QDF_STATUS_E_FAULT;
-		return uResult;
-	}
-
-	get_random_bytes(pbBuf, numBytes);
-	/* "Random sequence generated." */
-	uResult = QDF_STATUS_SUCCESS;
-	return uResult;
-}
-
 #ifdef WLAN_FEATURE_11W
 uint8_t cds_get_mmie_size(void)
 {
@@ -357,14 +263,13 @@ cds_attach_mmie(uint8_t *igtk, uint8_t *ipn, uint16_t key_id,
 
 	/* Check if frame is invalid length */
 	if (((efrm - frm) != frmLen) || (frmLen < sizeof(*wh))) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "%s: Invalid frame length", __func__);
+		cds_err("Invalid frame length");
 		return false;
 	}
 	mmie = (struct ieee80211_mmie *)(efrm - sizeof(*mmie));
 
 	/* Copy Element id */
-	mmie->element_id = IEEE80211_ELEMID_MMIE;
+	mmie->element_id = WLAN_ELEMID_MMIE;
 
 	/* Copy Length */
 	mmie->length = sizeof(*mmie) - 2;
@@ -387,16 +292,13 @@ cds_attach_mmie(uint8_t *igtk, uint8_t *ipn, uint16_t key_id,
 	if (IS_ERR(tfm)) {
 		ret = PTR_ERR(tfm);
 		tfm = NULL;
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "%s: crypto_alloc_cipher failed (%d)", __func__, ret);
+		cds_err("crypto_alloc_cipher failed (%d)", ret);
 		goto err_tfm;
 	}
 
 	ret = crypto_cipher_setkey(tfm, igtk, AES_KEYSIZE_128);
 	if (ret) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "%s: crypto_cipher_setkey failed (%d)", __func__,
-			  ret);
+		cds_err("crypto_cipher_setkey failed (%d)", ret);
 		goto err_tfm;
 	}
 
@@ -411,14 +313,13 @@ cds_attach_mmie(uint8_t *igtk, uint8_t *ipn, uint16_t key_id,
 	aad[1] = wh->i_fc[1] & ~(IEEE80211_FC1_RETRY | IEEE80211_FC1_PWR_MGT |
 				 IEEE80211_FC1_MORE_DATA);
 	/* A1 || A2 || A3 */
-	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * IEEE80211_ADDR_LEN);
+	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * QDF_MAC_ADDR_SIZE);
 
 	/* MIC = AES-128-CMAC(IGTK, AAD || Management Frame Body || MMIE, 64) */
 	nBytes = AAD_LEN + (frmLen - sizeof(struct ieee80211_frame));
 	input = (uint8_t *) qdf_mem_malloc(nBytes);
-	if (NULL == input) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "%s: Memory allocation failed", __func__);
+	if (!input) {
+		cds_err("Memory allocation failed");
 		ret = QDF_STATUS_E_NOMEM;
 		goto err_tfm;
 	}
@@ -437,8 +338,7 @@ cds_attach_mmie(uint8_t *igtk, uint8_t *ipn, uint16_t key_id,
 	cds_cmac_calc_mic(tfm, input, nBytes, mic);
 	qdf_mem_free(input);
 
-	QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_INFO_HIGH,
-		  "CMAC(T)= %02X %02X %02X %02X %02X %02X %02X %02X",
+	cds_debug("CMAC(T)= %02X %02X %02X %02X %02X %02X %02X %02X",
 		  mic[0], mic[1], mic[2], mic[3],
 		  mic[4], mic[5], mic[6], mic[7]);
 	qdf_mem_copy(mmie->mic, mic, IEEE80211_MMIE_MICLEN);
@@ -465,28 +365,25 @@ cds_is_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm, uint8_t *efrm)
 
 	/* Check if frame is invalid length */
 	if ((efrm < frm) || ((efrm - frm) < sizeof(*wh))) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "Invalid frame length");
+		cds_err("Invalid frame length");
 		return false;
 	}
 
 	mmie = (struct ieee80211_mmie *)(efrm - sizeof(*mmie));
 
 	/* Check Element ID */
-	if ((mmie->element_id != IEEE80211_ELEMID_MMIE) ||
+	if ((mmie->element_id != WLAN_ELEMID_MMIE) ||
 	    (mmie->length != (sizeof(*mmie) - 2))) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "IE is not Mgmt MIC IE or Invalid length");
+		cds_err("IE is not Mgmt MIC IE or Invalid length");
 		/* IE is not Mgmt MIC IE or invalid length */
 		return false;
 	}
 
 	/* Validate IPN */
 	rx_ipn = mmie->sequence_number;
-	if (OS_MEMCMP(rx_ipn, ipn, CMAC_IPN_LEN) <= 0) {
+	if (qdf_mem_cmp(rx_ipn, ipn, CMAC_IPN_LEN) <= 0) {
 		/* Replay error */
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "Replay error mmie ipn %02X %02X %02X %02X %02X %02X"
+		cds_err("Replay error mmie ipn %02X %02X %02X %02X %02X %02X"
 			  " drvr ipn %02X %02X %02X %02X %02X %02X",
 			  rx_ipn[0], rx_ipn[1], rx_ipn[2], rx_ipn[3], rx_ipn[4],
 			  rx_ipn[5], ipn[0], ipn[1], ipn[2], ipn[3], ipn[4],
@@ -497,15 +394,13 @@ cds_is_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm, uint8_t *efrm)
 	if (IS_ERR(tfm)) {
 		ret = PTR_ERR(tfm);
 		tfm = NULL;
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "crypto_alloc_cipher failed (%d)", ret);
+		cds_err("crypto_alloc_cipher failed (%d)", ret);
 		goto err_tfm;
 	}
 
 	ret = crypto_cipher_setkey(tfm, igtk, AES_KEYSIZE_128);
 	if (ret) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "crypto_cipher_setkey failed (%d)", ret);
+		cds_err("crypto_cipher_setkey failed (%d)", ret);
 		goto err_tfm;
 	}
 
@@ -520,14 +415,13 @@ cds_is_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm, uint8_t *efrm)
 	aad[1] = wh->i_fc[1] & ~(IEEE80211_FC1_RETRY | IEEE80211_FC1_PWR_MGT |
 				 IEEE80211_FC1_MORE_DATA);
 	/* A1 || A2 || A3 */
-	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * IEEE80211_ADDR_LEN);
+	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * QDF_MAC_ADDR_SIZE);
 
 	/* MIC = AES-128-CMAC(IGTK, AAD || Management Frame Body || MMIE, 64) */
 	nBytes = AAD_LEN + (efrm - (uint8_t *) (wh + 1));
 	input = (uint8_t *) qdf_mem_malloc(nBytes);
-	if (NULL == input) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "Memory allocation failed");
+	if (!input) {
+		cds_err("Memory allocation failed");
 		ret = QDF_STATUS_E_NOMEM;
 		goto err_tfm;
 	}
@@ -540,15 +434,13 @@ cds_is_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm, uint8_t *efrm)
 	cds_cmac_calc_mic(tfm, input, nBytes, mic);
 	qdf_mem_free(input);
 
-	QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-		  "CMAC(T)= %02X %02X %02X %02X %02X %02X %02X %02X",
-		  mic[0], mic[1], mic[2], mic[3],
-		  mic[4], mic[5], mic[6], mic[7]);
+	cds_err("CMAC(T)= %02X %02X %02X %02X %02X %02X %02X %02X",
+		mic[0], mic[1], mic[2], mic[3],
+		mic[4], mic[5], mic[6], mic[7]);
 
-	if (OS_MEMCMP(mic, mmie->mic, CMAC_TLEN) != 0) {
+	if (qdf_mem_cmp(mic, mmie->mic, CMAC_TLEN) != 0) {
 		/* MMIE MIC mismatch */
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "BC/MC MGMT frame MMIE MIC check Failed"
+		cds_err("BC/MC MGMT frame MMIE MIC check Failed"
 			  " rmic %02X %02X %02X %02X %02X %02X %02X %02X"
 			  " cmic %02X %02X %02X %02X %02X %02X %02X %02X",
 			  mmie->mic[0], mmie->mic[1], mmie->mic[2],
@@ -568,8 +460,7 @@ err_tfm:
 	return !ret ? true : false;
 }
 
-#if defined(WLAN_FEATURE_GMAC) && \
-		(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 uint8_t cds_get_gmac_mmie_size(void)
 {
 	return sizeof(struct ieee80211_mmie_16);
@@ -581,7 +472,6 @@ uint8_t cds_get_gmac_mmie_size(void)
 }
 #endif
 
-#ifdef WLAN_FEATURE_GMAC
 /**
  * ipn_swap: Swaps ipn
  * @d: destination pointer
@@ -598,16 +488,15 @@ static inline void ipn_swap(u8 *d, const u8 *s)
 	*d++ = s[1];
 	*d = s[0];
 }
-#endif
 
-#if defined(WLAN_FEATURE_GMAC) && \
-		(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 			    uint8_t *efrm, uint16_t key_length)
 {
 	struct ieee80211_mmie_16 *mmie;
 	struct ieee80211_frame *wh;
-	uint8_t rx_ipn[6], aad[AAD_LEN], mic[IEEE80211_MMIE_GMAC_MICLEN];
+	uint8_t rx_ipn[6], aad[AAD_LEN];
+	uint8_t mic[IEEE80211_MMIE_GMAC_MICLEN] = {0};
 	uint16_t data_len;
 	uint8_t gmac_nonce[GMAC_NONCE_LEN];
 	uint8_t iv[AES_BLOCK_SIZE] = {0};
@@ -615,18 +504,16 @@ bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 
 	/* Check if frame is invalid length */
 	if ((efrm < frm) || ((efrm - frm) < sizeof(*wh))) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "Invalid frame length");
+		cds_err("Invalid frame length");
 		return false;
 	}
 
 	mmie = (struct ieee80211_mmie_16 *)(efrm - sizeof(*mmie));
 
 	/* Check Element ID */
-	if ((mmie->element_id != IEEE80211_ELEMID_MMIE) ||
+	if ((mmie->element_id != WLAN_ELEMID_MMIE) ||
 	    (mmie->length != (sizeof(*mmie) - 2))) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "IE is not Mgmt MIC IE or Invalid length");
+		cds_err("IE is not Mgmt MIC IE or Invalid length");
 		/* IE is not Mgmt MIC IE or invalid length */
 		return false;
 	}
@@ -635,8 +522,7 @@ bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 	ipn_swap(rx_ipn, mmie->sequence_number);
 	if (qdf_mem_cmp(rx_ipn, ipn, IEEE80211_MMIE_IPNLEN) <= 0) {
 		/* Replay error */
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_DEBUG,
-			  "Replay error mmie ipn %02X %02X %02X %02X %02X %02X"
+		cds_debug("Replay error mmie ipn %02X %02X %02X %02X %02X %02X"
 			  " drvr ipn %02X %02X %02X %02X %02X %02X",
 			  rx_ipn[0], rx_ipn[1], rx_ipn[2], rx_ipn[3], rx_ipn[4],
 			  rx_ipn[5], ipn[0], ipn[1], ipn[2], ipn[3], ipn[4],
@@ -654,13 +540,13 @@ bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 	aad[1] = wh->i_fc[1] & ~(IEEE80211_FC1_RETRY | IEEE80211_FC1_PWR_MGT |
 				 IEEE80211_FC1_MORE_DATA);
 	/* A1 || A2 || A3 */
-	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * IEEE80211_ADDR_LEN);
+	qdf_mem_copy(aad + 2, wh->i_addr_all, 3 * QDF_MAC_ADDR_SIZE);
 
 	data_len = efrm - (uint8_t *) (wh + 1) - IEEE80211_MMIE_GMAC_MICLEN;
 
 	/* IV */
-	qdf_mem_copy(gmac_nonce, wh->i_addr2, IEEE80211_ADDR_LEN);
-	qdf_mem_copy(gmac_nonce + IEEE80211_ADDR_LEN, rx_ipn,
+	qdf_mem_copy(gmac_nonce, wh->i_addr2, QDF_MAC_ADDR_SIZE);
+	qdf_mem_copy(gmac_nonce + QDF_MAC_ADDR_SIZE, rx_ipn,
 		     IEEE80211_MMIE_IPNLEN);
 	qdf_mem_copy(iv, gmac_nonce, GMAC_NONCE_LEN);
 	iv[AES_BLOCK_SIZE - 1] = 0x01;
@@ -668,15 +554,13 @@ bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 	ret = qdf_crypto_aes_gmac(igtk, key_length, iv, aad,
 				     (uint8_t *) (wh + 1), data_len, mic);
 	if (ret) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			"qdf_crypto_aes_gmac failed %d", ret);
+		cds_err("qdf_crypto_aes_gmac failed %d", ret);
 		return false;
 	}
 
 	if (qdf_mem_cmp(mic, mmie->mic, IEEE80211_MMIE_GMAC_MICLEN) != 0) {
 		/* MMIE MIC mismatch */
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_DEBUG,
-			  "BC/MC MGMT frame MMIE MIC check Failed"
+		cds_debug("BC/MC MGMT frame MMIE MIC check Failed"
 			  " rmic %02X %02X %02X %02X %02X %02X %02X %02X"
 			  " %02X %02X %02X %02X %02X %02X %02X %02X",
 			  mmie->mic[0], mmie->mic[1], mmie->mic[2],
@@ -734,16 +618,6 @@ uint8_t cds_freq_to_chan(uint32_t freq)
 	return chan;
 }
 
-void cds_upper_to_lower(uint8_t *txt, uint32_t length)
-{
-	int i;
-
-	for (i = 0; i < length; i++) {
-		if (txt[i] >= 'A' && txt[i] <= 'Z')
-			txt[i] = txt[i] + 32;
-	}
-}
-
 enum cds_band_type cds_chan_to_band(uint32_t chan)
 {
 	if (chan <= CDS_24_GHZ_CHANNEL_14)
@@ -762,11 +636,19 @@ void cds_copy_hlp_info(struct qdf_mac_addr *input_dst_mac,
 		       uint8_t *output_hlp_data)
 {
 	if (!input_hlp_data_len) {
-		QDF_TRACE(QDF_MODULE_ID_QDF, QDF_TRACE_LEVEL_ERROR,
-			  "Input HLP data len zero\n");
+		cds_debug("Input HLP data len zero\n");
 		return;
 	}
 
+	if (!input_dst_mac) {
+		cds_debug("HLP destination mac NULL");
+		return;
+	}
+
+	if (!input_src_mac) {
+		cds_debug("HLP source mac NULL");
+		return;
+	}
 	qdf_copy_macaddr(output_dst_mac, input_dst_mac);
 	qdf_copy_macaddr(output_src_mac, input_src_mac);
 	*output_hlp_data_len = input_hlp_data_len;

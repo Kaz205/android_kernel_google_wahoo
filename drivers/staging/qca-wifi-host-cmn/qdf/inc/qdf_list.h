@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,13 +15,6 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 
 /**
  *  DOC: qdf_list.h
@@ -54,7 +44,29 @@
 
 typedef __qdf_list_node_t qdf_list_node_t;
 typedef __qdf_list_t qdf_list_t;
+
 /* Function declarations */
+
+/**
+ * qdf_list_insert_before() - insert new node before the node
+ * @list: Pointer to list
+ * @new_node: Pointer to input node
+ * @node: node before which new node should be added.
+ *
+ * Return: QDF status
+ */
+QDF_STATUS qdf_list_insert_before(qdf_list_t *list,
+	qdf_list_node_t *new_node, qdf_list_node_t *node);
+/**
+ * qdf_list_insert_after() - insert new node after the node
+ * @list: Pointer to list
+ * @new_node: Pointer to input node
+ * @node: node after which new node should be added.
+ *
+ * Return: QDF status
+ */
+QDF_STATUS qdf_list_insert_after(qdf_list_t *list,
+	qdf_list_node_t *new_node, qdf_list_node_t *node);
 QDF_STATUS qdf_list_insert_front(qdf_list_t *list, qdf_list_node_t *node);
 
 QDF_STATUS qdf_list_insert_back_size(qdf_list_t *list, qdf_list_node_t *node,
@@ -66,9 +78,10 @@ QDF_STATUS qdf_list_peek_next(qdf_list_t *list,	qdf_list_node_t *node,
 			      qdf_list_node_t **node1);
 
 /**
- * qdf_list_create() - Initialize list head
+ * qdf_list_create() - Create qdf list and initialize list head
  * @list: object of list
  * @max_size: max size of the list
+ *
  * Return: none
  */
 static inline void qdf_list_create(__qdf_list_t *list, uint32_t max_size)
@@ -76,6 +89,31 @@ static inline void qdf_list_create(__qdf_list_t *list, uint32_t max_size)
 	__qdf_list_create(list, max_size);
 }
 
+#define QDF_LIST_ANCHOR(list) __QDF_LIST_ANCHOR(list)
+
+#define QDF_LIST_NODE_INIT(prev, next) __QDF_LIST_NODE_INIT(prev, next)
+#define QDF_LIST_NODE_INIT_SINGLE(node) __QDF_LIST_NODE_INIT_SINGLE(node)
+
+#define QDF_LIST_INIT(tail, head) __QDF_LIST_INIT(tail, head)
+#define QDF_LIST_INIT_SINGLE(node) __QDF_LIST_INIT_SINGLE(node)
+#define QDF_LIST_INIT_EMPTY(list) __QDF_LIST_INIT_EMPTY(list)
+
+#define qdf_list_for_each(list_ptr, cursor, node_field) \
+	__qdf_list_for_each(list_ptr, cursor, node_field)
+
+#define qdf_list_for_each_del(list_ptr, cursor, next, node_field) \
+	__qdf_list_for_each_del(list_ptr, cursor, next, node_field)
+
+/**
+ * qdf_init_list_head() - initialize list head
+ * @list_head: pointer to list head
+ *
+ * Return: none
+ */
+static inline void qdf_init_list_head(__qdf_list_node_t *list_head)
+{
+	__qdf_init_list_head(list_head);
+}
 
 /**
  * qdf_list_destroy() - Destroy the list
@@ -99,7 +137,17 @@ static inline void qdf_list_destroy(qdf_list_t *list)
  */
 static inline uint32_t qdf_list_size(qdf_list_t *list)
 {
-	return list->count;
+	return __qdf_list_size(list);
+}
+
+/**
+ * qdf_list_max_size() - gives the max size of the list
+ * @list: object of list
+ * Return: max size of the list
+ */
+static inline uint32_t qdf_list_max_size(qdf_list_t *list)
+{
+	return __qdf_list_max_size(list);
 }
 
 QDF_STATUS qdf_list_insert_back(qdf_list_t *list, qdf_list_node_t *node);
@@ -112,5 +160,26 @@ QDF_STATUS qdf_list_remove_node(qdf_list_t *list,
 				qdf_list_node_t *node_to_remove);
 
 bool qdf_list_empty(qdf_list_t *list);
+
+/**
+ * qdf_list_has_node() - check if a node is in a list
+ * @list: pointer to the list being searched
+ * @node: pointer to the node to search for
+ *
+ * This API has a time complexity of O(n).
+ *
+ * Return: true if the node is in the list
+ */
+bool qdf_list_has_node(qdf_list_t *list, qdf_list_node_t *node);
+
+/**
+ * qdf_list_node_in_any_list() - ensure @node is a member of a list
+ * @node: list node to check
+ *
+ * This API has a time complexity of O(1). See also qdf_list_has_node().
+ *
+ * Return: true, if @node appears to be in a list
+ */
+bool qdf_list_node_in_any_list(const qdf_list_node_t *node);
 
 #endif /* __QDF_LIST_H */

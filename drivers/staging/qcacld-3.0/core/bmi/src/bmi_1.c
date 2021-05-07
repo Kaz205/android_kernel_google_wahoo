@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #include "i_bmi.h"
@@ -58,9 +49,9 @@ bmi_read_memory(uint32_t address,
 
 	bmi_assert(BMI_COMMAND_FITS(BMI_DATASZ_MAX + sizeof(cid) +
 			sizeof(address) + sizeof(length)));
-	qdf_mem_set(bmi_cmd_buff, 0, BMI_DATASZ_MAX + sizeof(cid) +
+	qdf_mem_zero(bmi_cmd_buff, BMI_DATASZ_MAX + sizeof(cid) +
 			sizeof(address) + sizeof(length));
-	qdf_mem_set(bmi_rsp_buff, 0, BMI_DATASZ_MAX + sizeof(cid) +
+	qdf_mem_zero(bmi_rsp_buff, BMI_DATASZ_MAX + sizeof(cid) +
 			sizeof(address) + sizeof(length));
 
 	cid = BMI_READ_MEMORY;
@@ -129,7 +120,7 @@ QDF_STATUS bmi_write_memory(uint32_t address, uint8_t *buffer, uint32_t length,
 	}
 
 	bmi_assert(BMI_COMMAND_FITS(BMI_DATASZ_MAX + header));
-	qdf_mem_set(bmi_cmd_buff, 0, BMI_DATASZ_MAX + header);
+	qdf_mem_zero(bmi_cmd_buff, BMI_DATASZ_MAX + header);
 
 	cid = BMI_WRITE_MEMORY;
 
@@ -198,8 +189,8 @@ bmi_execute(uint32_t address, A_UINT32 *param, struct ol_context *ol_ctx)
 	}
 
 	bmi_assert(BMI_COMMAND_FITS(size));
-	qdf_mem_set(bmi_cmd_buff, 0, size);
-	qdf_mem_set(bmi_rsp_buff, 0, size);
+	qdf_mem_zero(bmi_cmd_buff, size);
+	qdf_mem_zero(bmi_rsp_buff, size);
 
 
 	BMI_DBG("BMI Execute: device: 0x%pK, address: 0x%x, param: %d",
@@ -294,7 +285,7 @@ QDF_STATUS bmi_done_local(struct ol_context *ol_ctx)
 
 	info = GET_BMI_CONTEXT(ol_ctx);
 	if (info->bmi_done) {
-		BMI_DBG("bmi_done_local skipped");
+		BMI_DBG(FL("skipped"));
 		return QDF_STATUS_E_PERM;
 	}
 

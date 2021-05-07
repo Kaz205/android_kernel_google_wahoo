@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef __WLAN_HDD_HOST_OFFLOAD_H__
@@ -50,8 +41,8 @@ struct host_offload_req {
 	uint8_t offloadType;
 	uint8_t enableOrDisable;
 	union {
-		uint8_t hostIpv4Addr[SIR_IPV4_ADDR_LEN];
-		uint8_t hostIpv6Addr[SIR_MAC_IPV6_ADDR_LEN];
+		uint8_t hostIpv4Addr[QDF_IPV4_ADDR_SIZE];
+		uint8_t hostIpv6Addr[QDF_IPV6_ADDR_SIZE];
 	} params;
 	struct qdf_mac_addr bssId;
 };

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef _QC_SAP_IOCTL_H_
 #define _QC_SAP_IOCTL_H_
 
@@ -33,54 +24,12 @@
  */
 
 /*
- * Max size of optional information elements.  We artificially
- * constrain this; it's limited only by the max frame size (and
- * the max parameter size of the wireless extensions).
- */
-#define QCSAP_MAX_OPT_IE        256
-#define QCSAP_MAX_WSC_IE        256
-#define QCSAP_MAX_GET_STA_INFO  512
-#define QCSAP_ADDR_LEN  6
-
-typedef uint8_t qcmacaddr[QCSAP_ADDR_LEN];
-
-struct qc_mac_acl_entry {
-	qcmacaddr addr;
-	int vlan_id;
-};
-
-/*
- * Retrieve the WPA/RSN information element for an associated station.
- */
-struct sQcSapreq_wpaie {
-	uint8_t wpa_ie[QCSAP_MAX_OPT_IE];
-	uint8_t wpa_macaddr[QCSAP_ADDR_LEN];
-};
-
-/*
- * Retrieve the WSC information element for an associated station.
- */
-struct sQcSapreq_wscie {
-	uint8_t wsc_macaddr[QCSAP_ADDR_LEN];
-	uint8_t wsc_ie[QCSAP_MAX_WSC_IE];
-};
-
-/*
- * Retrieve the WPS PBC Probe Request IEs.
- */
-struct sap_wpspbc_probe_reqies {
-	struct qdf_mac_addr macaddr;
-	uint16_t probeReqIELen;
-	uint8_t probeReqIE[512];
-};
-
-/*
  * Channel List Info
  */
 
 struct channel_list_info {
 	uint8_t num_channels;
-	uint8_t channels[WNI_CFG_VALID_CHANNEL_LIST_LEN];
+	uint8_t channels[CFG_VALID_CHANNEL_LIST_LEN];
 };
 
 #ifdef __linux__
@@ -99,7 +48,7 @@ struct channel_list_info {
 #define QCSAP_IOCTL_GET_STAWPAIE      (SIOCIWFIRSTPRIV + 4)
 #define QCSAP_IOCTL_STOPBSS           (SIOCIWFIRSTPRIV + 6)
 #define QCSAP_IOCTL_VERSION           (SIOCIWFIRSTPRIV + 7)
-#define QCSAP_IOCTL_GET_WPS_PBC_PROBE_REQ_IES       (SIOCIWFIRSTPRIV + 8)
+/* (SIOCIWFIRSTPRIV + 8) is unused */
 #define QCSAP_IOCTL_GET_CHANNEL       (SIOCIWFIRSTPRIV + 9)
 #define QCSAP_IOCTL_ASSOC_STA_MACADDR (SIOCIWFIRSTPRIV + 10)
 #define QCSAP_IOCTL_DISASSOC_STA      (SIOCIWFIRSTPRIV + 11)
@@ -109,15 +58,36 @@ struct channel_list_info {
 #define QCSAP_PRIV_GET_CHAR_SET_NONE   (SIOCIWFIRSTPRIV + 13)
 #define QCSAP_GET_STATS 1
 #define QCSAP_LIST_FW_PROFILE 2
-#define QCSAP_IOCTL_CLR_STATS         (SIOCIWFIRSTPRIV + 14)
+
+/* (SIOCIWFIRSTPRIV + 14) is unused */
 
 #define QCSAP_IOCTL_PRIV_SET_THREE_INT_GET_NONE (SIOCIWFIRSTPRIV + 15)
 #define WE_SET_WLAN_DBG 1
 #define WE_SET_DP_TRACE 2
-#define WE_SET_SAP_CHANNELS  3
 #define QCSAP_IOCTL_PRIV_SET_VAR_INT_GET_NONE (SIOCIWFIRSTPRIV + 16)
 #define WE_UNIT_TEST_CMD   7
-#define QCSAP_IOCTL_SET_CHANNEL_RANGE (SIOCIWFIRSTPRIV + 17)
+/*
+ * <ioctl>
+ * ch_avoid - unit test SAP channel avoidance
+ *
+ * @INPUT: chan avoid ranges
+ *
+ * @OUTPUT: none
+ *
+ * This IOCTL is used to fake a channel avoidance event.
+ * To test SAP/GO chan switch during chan avoid event process.
+ *
+ * @E.g: iwpriv wlan0 ch_avoid 2452 2462
+ *
+ * Supported Feature: SAP chan avoidance.
+ *
+ * Usage: Internal
+ *
+ * </ioctl>
+ */
+#define WE_SET_CHAN_AVOID 21
+
+#define WE_SET_THERMAL_THROTTLE_CFG     27
 
 #define WE_P2P_NOA_CMD  2
 
@@ -127,18 +97,23 @@ struct channel_list_info {
 #define QCSAP_IOCTL_GET_STA_INFO        (SIOCIWFIRSTPRIV + 21)
 #define QCSAP_IOCTL_SET_MAX_TX_POWER    (SIOCIWFIRSTPRIV + 22)
 #define QCSAP_IOCTL_GET_INI_CFG         (SIOCIWFIRSTPRIV + 25)
-#define QCSAP_IOCTL_SET_INI_CFG         (SIOCIWFIRSTPRIV + 26)
+
 #define QCSAP_IOCTL_SET_TWO_INT_GET_NONE (SIOCIWFIRSTPRIV + 28)
-#ifdef WLAN_DEBUG
+/* QCSAP_IOCTL_SET_TWO_INT_GET_NONE sub commands */
 #define QCSAP_IOCTL_SET_FW_CRASH_INJECT 1
-#endif
 #define QCSAP_IOCTL_DUMP_DP_TRACE_LEVEL 2
 #define QCSAP_ENABLE_FW_PROFILE          3
 #define QCSAP_SET_FW_PROFILE_HIST_INTVL  4
+/* Private sub-ioctl for initiating WoW suspend without Apps suspend */
+#define QCSAP_SET_WLAN_SUSPEND  5
+#define QCSAP_SET_WLAN_RESUME   6
+#define QCSAP_SET_BA_AGEING_TIMEOUT 7
 
-#define MAX_VAR_ARGS         7
 #define QCSAP_IOCTL_PRIV_GET_RSSI       (SIOCIWFIRSTPRIV + 29)
 #define QCSAP_IOCTL_PRIV_GET_SOFTAP_LINK_SPEED (SIOCIWFIRSTPRIV + 31)
+#define QCSAP_IOCTL_GET_BA_AGEING_TIMEOUT (SIOCIWFIRSTPRIV + 32)
+
+#define MAX_VAR_ARGS         7
 
 #define QCSAP_IOCTL_MAX_STR_LEN 1024
 
@@ -147,6 +122,9 @@ struct channel_list_info {
 
 #define RC_2_RATE_IDX_11AC(_rc)         ((_rc) & 0xf)
 #define HT_RC_2_STREAMS_11AC(_rc)       ((((_rc) & 0x30) >> 4) + 1)
+
+#define RC_2_RATE_IDX_11AX(_rc)         ((_rc) & 0x1f)
+#define HT_RC_2_STREAMS_11AX(_rc)       (((_rc) >> 5) & 0x7)
 
 /*
  * <ioctl>
@@ -187,14 +165,12 @@ struct channel_list_info {
  *
  * </ioctl>
  */
-
 enum {
 	QCSAP_PARAM_MAX_ASSOC = 1,
 	QCSAP_PARAM_GET_WLAN_DBG,
 	QCSAP_PARAM_CLR_ACL = 4,
 	QCSAP_PARAM_ACL_MODE,
 	QCSAP_PARAM_HIDE_SSID,
-	QCSAP_PARAM_AUTO_CHANNEL,
 	QCSAP_PARAM_SET_MC_RATE,
 	QCSAP_PARAM_SET_TXRX_FW_STATS,
 	QCSAP_PARAM_SET_MCC_CHANNEL_LATENCY,
@@ -248,13 +224,23 @@ enum {
 	QCASAP_PARAM_TX_STBC,
 	QCASAP_PARAM_RX_STBC,
 	QCSAP_PARAM_CHAN_WIDTH,
+	QCSAP_PARAM_SET_TXRX_STATS,
+	QCASAP_SET_11AX_RATE,
+	QCASAP_SET_PEER_RATE, /* Not Supported */
+	QCASAP_PARAM_DCM,
+	QCASAP_PARAM_RANGE_EXT,
 	QCSAP_SET_DEFAULT_AMPDU,
 	QCSAP_ENABLE_RTS_BURSTING,
+	QCASAP_SET_HE_BSS_COLOR,
+	QCSAP_SET_BTCOEX_MODE,
+	QCSAP_SET_BTCOEX_LOW_RSSI_THRESHOLD,
 };
 
-int iw_get_channel_list(struct net_device *dev,
-		struct iw_request_info *info,
-		union iwreq_data *wrqu, char *extra);
+int iw_get_channel_list_with_cc(struct net_device *dev,
+				mac_handle_t mac_handle,
+				struct iw_request_info *info,
+				union iwreq_data *wrqu,
+				char *extra);
 
 #endif /* __linux__ */
 

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,13 +16,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
-#if !defined(__CDS_UTILS_H)
+#ifndef __CDS_UTILS_H
 #define __CDS_UTILS_H
 
 /**=========================================================================
@@ -50,14 +41,9 @@
 /*--------------------------------------------------------------------------
    Preprocessor definitions and constants
    ------------------------------------------------------------------------*/
-#define CDS_DIGEST_SHA1_SIZE    (20)
-#define CDS_DIGEST_MD5_SIZE     (16)
-
 #define CDS_24_GHZ_BASE_FREQ   (2407)
 #define CDS_5_GHZ_BASE_FREQ    (5000)
-#define CDS_24_GHZ_CHANNEL_6   (6)
 #define CDS_24_GHZ_CHANNEL_1   (1)
-#define CDS_5_GHZ_CHANNEL_36   (36)
 #define CDS_24_GHZ_CHANNEL_14  (14)
 #define CDS_24_GHZ_CHANNEL_15  (15)
 #define CDS_24_GHZ_CHANNEL_27  (27)
@@ -71,21 +57,28 @@
 
 #define INVALID_SCAN_ID        0xFFFFFFFF
 
-#define cds_log(level, args...) QDF_TRACE(QDF_MODULE_ID_QDF, level, ## args)
-#define cds_logfl(level, format, args...) cds_log(level, FL(format), ## args)
+#define CDS_DBS_SCAN_CLIENTS_MAX           (7)
+#define CDS_DBS_SCAN_PARAM_PER_CLIENT      (3)
 
-#define cds_alert(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_FATAL, format, ## args)
-#define cds_err(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_ERROR, format, ## args)
-#define cds_warn(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_WARN, format, ## args)
-#define cds_notice(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_INFO, format, ## args)
-#define cds_info(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_INFO_HIGH, format, ## args)
-#define cds_debug(format, args...) \
-		cds_logfl(QDF_TRACE_LEVEL_DEBUG, format, ## args)
+#define cds_alert(params...) QDF_TRACE_FATAL(QDF_MODULE_ID_QDF, params)
+#define cds_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_QDF, params)
+#define cds_warn(params...) QDF_TRACE_WARN(QDF_MODULE_ID_QDF, params)
+#define cds_info(params...) QDF_TRACE_INFO(QDF_MODULE_ID_QDF, params)
+#define cds_debug(params...) QDF_TRACE_DEBUG(QDF_MODULE_ID_QDF, params)
+
+#define cds_nofl_alert(params...) \
+	QDF_TRACE_FATAL_NO_FL(QDF_MODULE_ID_QDF, params)
+#define cds_nofl_err(params...) \
+	QDF_TRACE_ERROR_NO_FL(QDF_MODULE_ID_QDF, params)
+#define cds_nofl_warn(params...) \
+	QDF_TRACE_WARN_NO_FL(QDF_MODULE_ID_QDF, params)
+#define cds_nofl_info(params...) \
+	QDF_TRACE_INFO_NO_FL(QDF_MODULE_ID_QDF, params)
+#define cds_nofl_debug(params...) \
+	QDF_TRACE_DEBUG_NO_FL(QDF_MODULE_ID_QDF, params)
+
+#define cds_enter() QDF_TRACE_ENTER(QDF_MODULE_ID_QDF, "enter")
+#define cds_exit() QDF_TRACE_EXIT(QDF_MODULE_ID_QDF, "exit")
 
 /**
  * enum cds_band_type - Band type - 2g, 5g or all
@@ -99,69 +92,20 @@ enum cds_band_type {
 	CDS_BAND_5GHZ = 2
 };
 
-/**
- * enum dbs_support - structure to define INI values and their meaning
- * ENABLE_DBS_CXN_AND_SCAN: Enable DBS support for connection and scan
- * DISABLE_DBS_CXN_AND_SCAN: Disable DBS support for connection and scan
- * DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN: disable dbs support for
- *			connection but keep dbs support for scan
- * DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN_WITH_ASYNC_SCAN_OFF: disable dbs support
- *			for connection but keep dbs for scan but switch
- *			off the async scan
- * ENABLE_DBS_CXN_AND_ENABLE_SCAN_WITH_ASYNC_SCAN_OFF: enable dbs support for
- *			connection and scan but switch off the async scan
- */
-enum dbs_support {
-	ENABLE_DBS_CXN_AND_SCAN,
-	DISABLE_DBS_CXN_AND_SCAN,
-	DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN,
-	DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN_WITH_ASYNC_SCAN_OFF,
-	ENABLE_DBS_CXN_AND_ENABLE_SCAN_WITH_ASYNC_SCAN_OFF,
-};
-
 /*-------------------------------------------------------------------------
    Function declarations and documenation
    ------------------------------------------------------------------------*/
-
-QDF_STATUS cds_crypto_init(uint32_t *phCryptProv);
-
-QDF_STATUS cds_crypto_deinit(uint32_t hCryptProv);
-
-/**
- * cds_rand_get_bytes
-
- * FUNCTION:
- * Returns cryptographically secure pseudo-random bytes.
- *
- *
- * @param pbBuf - the caller allocated location where the bytes should be copied
- * @param numBytes the number of bytes that should be generated and
- * copied
- *
- * @return QDF_STATUS_SUCCSS if the operation succeeds
- */
-QDF_STATUS cds_rand_get_bytes(uint32_t handle, uint8_t *pbBuf,
-			      uint32_t numBytes);
 
 uint32_t cds_chan_to_freq(uint8_t chan);
 uint8_t cds_freq_to_chan(uint32_t freq);
 enum cds_band_type cds_chan_to_band(uint32_t chan);
 
-/**
- * cds_upper_to_lower: API to convert upper case string into lower case
- * @txt: input text
- * @length: length of input string
- *
- * Return: None
- */
-void cds_upper_to_lower(uint8_t *txt, uint32_t length);
 #ifdef WLAN_FEATURE_11W
 bool cds_is_mmie_valid(uint8_t *key, uint8_t *ipn,
 		       uint8_t *frm, uint8_t *efrm);
 bool cds_attach_mmie(uint8_t *igtk, uint8_t *ipn, uint16_t key_id,
 		     uint8_t *frm, uint8_t *efrm, uint16_t frmLen);
 uint8_t cds_get_mmie_size(void);
-
 /**
  * cds_is_gmac_mmie_valid: Validates GMAC MIC
  * @igtk: integrity group temporal key
@@ -183,7 +127,6 @@ bool cds_is_gmac_mmie_valid(uint8_t *igtk, uint8_t *ipn, uint8_t *frm,
 uint8_t cds_get_gmac_mmie_size(void);
 
 #endif /* WLAN_FEATURE_11W */
-QDF_STATUS sme_send_flush_logs_cmd_to_fw(tpAniSirGlobal pMac);
 static inline void cds_host_diag_log_work(qdf_wake_lock_t *lock, uint32_t msec,
 			    uint32_t reason) {
 	if (((cds_get_ring_log_level(RING_ID_WAKELOCK) >= WLAN_LOG_LEVEL_ACTIVE)
@@ -217,4 +160,4 @@ void cds_copy_hlp_info(struct qdf_mac_addr *input_dst_mac,
 		       struct qdf_mac_addr *output_src_mac,
 		       uint16_t *output_hlp_data_len,
 		       uint8_t *output_hlp_data);
-#endif /* #if !defined __CDS_UTILS_H */
+#endif /* #ifndef __CDS_UTILS_H */

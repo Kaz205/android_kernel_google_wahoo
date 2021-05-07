@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2015-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,13 +16,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #include "targcfg.h"
+#include "target_type.h"
 #include "qdf_lock.h"
 #include "qdf_status.h"
 #include "qdf_status.h"
@@ -39,6 +31,7 @@
 #include "ce_api.h"
 #include "qdf_trace.h"
 #include "hif_debug.h"
+#include "qdf_module.h"
 
 void
 hif_ce_dump_target_memory(struct hif_softc *scn, void *ramdump_base,
@@ -53,7 +46,7 @@ hif_ce_dump_target_memory(struct hif_softc *scn, void *ramdump_base,
 		return;
 
 	while (j < size) {
-		val = hif_read32_mb(scn->mem + loc + j);
+		val = hif_read32_mb(scn, scn->mem + loc + j);
 		qdf_mem_copy(temp, &val, 4);
 		j += 4;
 		temp += 4;
@@ -70,21 +63,21 @@ hif_ce_dump_target_memory(struct hif_softc *scn, void *ramdump_base,
  * but that's not guaranteed.
  */
 #ifdef QCA_WIFI_3_0
-#define TARG_CPU_SPACE_TO_CE_SPACE(pci_addr, addr) \
+#define TARG_CPU_SPACE_TO_CE_SPACE(sc, pci_addr, addr) \
 	(scn->mem_pa + addr)
 #else
-#define TARG_CPU_SPACE_TO_CE_SPACE(pci_addr, addr) \
-	(((hif_read32_mb((pci_addr) + \
+#define TARG_CPU_SPACE_TO_CE_SPACE(sc, pci_addr, addr) \
+	(((hif_read32_mb(sc, (pci_addr) + \
 	(SOC_CORE_BASE_ADDRESS|CORE_CTRL_ADDRESS)) & 0x7ff) << 21) \
 	 | 0x100000 | ((addr) & 0xfffff))
 #endif
 
-#define TARG_CPU_SPACE_TO_CE_SPACE_IPQ4019(pci_addr, addr) \
-	(hif_read32_mb((pci_addr)+(WIFICMN_PCIE_BAR_REG_ADDRESS)) \
+#define TARG_CPU_SPACE_TO_CE_SPACE_IPQ4019(scn, pci_addr, addr) \
+	(hif_read32_mb(scn, (pci_addr) + (WIFICMN_PCIE_BAR_REG_ADDRESS)) \
 	| ((addr) & 0xfffff))
 
-#define TARG_CPU_SPACE_TO_CE_SPACE_AR900B(pci_addr, addr) \
-	(hif_read32_mb((pci_addr)+(WIFICMN_PCIE_BAR_REG_ADDRESS)) \
+#define TARG_CPU_SPACE_TO_CE_SPACE_AR900B(scn, pci_addr, addr) \
+	(hif_read32_mb(scn, (pci_addr) + (WIFICMN_PCIE_BAR_REG_ADDRESS)) \
 	| 0x100000 | ((addr) & 0xfffff))
 
 #define SRAM_BASE_ADDRESS 0xc0000
@@ -120,17 +113,17 @@ static qdf_dma_addr_t get_ce_phy_addr(struct hif_softc *sc, uint32_t  address,
 	}
 
 	if ((target_type == TARGET_TYPE_IPQ4019) && sramregion == 1) {
-		ce_phy_addr =
-			TARG_CPU_SPACE_TO_CE_SPACE_IPQ4019(sc->mem, address);
+		ce_phy_addr = TARG_CPU_SPACE_TO_CE_SPACE_IPQ4019(sc, sc->mem,
+								 address);
 	} else if ((target_type == TARGET_TYPE_AR900B) ||
 	    (target_type == TARGET_TYPE_QCA9984) ||
 	    (target_type == TARGET_TYPE_IPQ4019) ||
 	    (target_type == TARGET_TYPE_QCA9888)) {
 		ce_phy_addr =
-		    TARG_CPU_SPACE_TO_CE_SPACE_AR900B(sc->mem, address);
+		    TARG_CPU_SPACE_TO_CE_SPACE_AR900B(sc, sc->mem, address);
 	} else {
 		ce_phy_addr =
-		    TARG_CPU_SPACE_TO_CE_SPACE(sc->mem, address);
+		    TARG_CPU_SPACE_TO_CE_SPACE(sc, sc->mem, address);
 	}
 
 	return ce_phy_addr;
@@ -167,6 +160,14 @@ QDF_STATUS hif_diag_read_mem(struct hif_opaque_softc *hif_ctx,
 	unsigned int user_flags = 0;
 	unsigned int target_type = 0;
 	unsigned int boundary_addr = 0;
+
+	ce_diag = hif_state->ce_diag;
+	if (!ce_diag) {
+		HIF_ERROR("%s: DIAG CE not present", __func__);
+		return QDF_STATUS_E_INVAL;
+	}
+	/* not supporting diag ce on srng based systems, therefore we know this
+	 * isn't an srng based system */
 
 	transaction_id = (mux_id & MUX_ID_MASK) |
 		 (transaction_id & TRANSACTION_ID_MASK);
@@ -206,7 +207,6 @@ QDF_STATUS hif_diag_read_mem(struct hif_opaque_softc *hif_ctx,
 
 		return status;
 	}
-	ce_diag = hif_state->ce_diag;
 
 	A_TARGET_ACCESS_LIKELY(scn);
 
@@ -223,9 +223,7 @@ QDF_STATUS hif_diag_read_mem(struct hif_opaque_softc *hif_ctx,
 		status = QDF_STATUS_E_NOMEM;
 		goto done;
 	}
-	qdf_mem_set(data_buf, orig_nbytes, 0);
-	qdf_mem_dma_sync_single_for_device(scn->qdf_dev, CE_data_base,
-				       orig_nbytes, DMA_FROM_DEVICE);
+	qdf_mem_zero(data_buf, orig_nbytes);
 
 	remaining_bytes = orig_nbytes;
 	CE_data = CE_data_base;
@@ -316,6 +314,7 @@ done:
 
 	return status;
 }
+qdf_export_symbol(hif_diag_read_mem);
 
 /* Read 4-byte aligned data from Target memory or register */
 QDF_STATUS hif_diag_read_access(struct hif_opaque_softc *hif_ctx,
@@ -368,6 +367,13 @@ QDF_STATUS hif_diag_write_mem(struct hif_opaque_softc *hif_ctx,
 	unsigned int target_type = 0;
 
 	ce_diag = hif_state->ce_diag;
+	if (!ce_diag) {
+		HIF_ERROR("%s: DIAG CE not present", __func__);
+		return QDF_STATUS_E_INVAL;
+	}
+	/* not supporting diag ce on srng based systems, therefore we know this
+	 * isn't an srng based system */
+
 	transaction_id = (mux_id & MUX_ID_MASK) |
 		(transaction_id & TRANSACTION_ID_MASK);
 #ifdef QCA_WIFI_3_0

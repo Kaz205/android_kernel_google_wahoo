@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012, 2014-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -41,13 +32,8 @@
 #include "lim_types.h"
 
 /* Scan result hash related functions */
-uint8_t lim_scan_hash_function(tSirMacAddr);
-void lim_restore_pre_scan_state(tpAniSirGlobal);
-void lim_copy_scan_result(tpAniSirGlobal, uint8_t *);
-void lim_check_and_add_bss_description(tpAniSirGlobal, tpSirProbeRespBeacon,
-				       uint8_t *, bool, uint8_t);
-void lim_collect_bss_description(tpAniSirGlobal pMac,
-			    tSirBssDescription *pBssDescr,
+void lim_collect_bss_description(struct mac_context *mac,
+			    struct bss_description *pBssDescr,
 			    tpSirProbeRespBeacon pBPR,
 			    uint8_t *pRxPacketInfo, uint8_t fScanning);
 #endif /* __LIM_SCAN_UTILS_H */

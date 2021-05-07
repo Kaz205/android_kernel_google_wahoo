@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2013, 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2013, 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -81,6 +72,10 @@ void ol_tx_sched_stats_display(struct ol_txrx_pdev_t *pdev);
 void ol_tx_sched_cur_state_display(struct ol_txrx_pdev_t *pdev);
 
 void ol_tx_sched_stats_clear(struct ol_txrx_pdev_t *pdev);
+
+void
+ol_txrx_set_wmm_param(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
+		      struct ol_tx_wmm_param_t wmm_param);
 
 #else
 
@@ -162,6 +157,14 @@ static inline void ol_tx_target_credit_incr(struct ol_txrx_pdev_t *pdev,
 {
 	ol_tx_target_credit_adjust(1, pdev, msdu);
 }
+
+#ifdef QCA_TX_PADDING_CREDIT_SUPPORT
+
+#define MIN_TX_PAD_CREDIT_THRESH        4
+#define MAX_TX_PAD_CREDIT_THRESH        5
+
+#endif /* QCA_TX_PADDING_CREDIT_SUPPORT */
+
 #else
 /*
  * LL does not need to keep track of target credit.
@@ -185,5 +188,6 @@ static inline void ol_tx_target_credit_incr(struct ol_txrx_pdev_t *pdev,
 					    qdf_nbuf_t msdu)
 {
 }
+
 #endif
 #endif /* _OL_TX_SCHED__H_ */

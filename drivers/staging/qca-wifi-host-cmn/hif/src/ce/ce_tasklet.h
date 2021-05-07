@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2015-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2015-2016,2018,2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,16 +16,11 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef __CE_TASKLET_H__
 #define __CE_TASKLET_H__
 #include "ce_main.h"
 void init_tasklet_workers(struct hif_opaque_softc *scn);
+void deinit_tasklet_workers(struct hif_opaque_softc *scn);
 void ce_tasklet_init(struct HIF_CE_state *hif_ce_state, uint32_t mask);
 void ce_tasklet_kill(struct hif_softc *scn);
 int hif_drain_tasklets(struct hif_softc *scn);
@@ -36,6 +28,6 @@ QDF_STATUS ce_register_irq(struct HIF_CE_state *hif_ce_state, uint32_t mask);
 QDF_STATUS ce_unregister_irq(struct HIF_CE_state *hif_ce_state, uint32_t mask);
 irqreturn_t ce_dispatch_interrupt(int irq,
 				  struct ce_tasklet_entry *tasklet_entry);
-void hif_display_ce_stats(struct HIF_CE_state *hif_ce_state);
+void hif_display_ce_stats(struct hif_softc *hif_ctx);
 void hif_clear_ce_stats(struct HIF_CE_state *hif_ce_state);
 #endif /* __CE_TASKLET_H__ */

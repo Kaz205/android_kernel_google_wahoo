@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2012, 2014, 2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2012, 2014, 2017-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,12 +17,6 @@
  */
 
 /*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
-/*
  *
  * This file sys_entry_func.h contains module entry functions definitions
  * Author:      V. K. Kandarpa
@@ -39,15 +30,6 @@
 
 #include "ani_global.h"
 
-extern tSirRetStatus sys_init_globals(tpAniSirGlobal);
-extern void sysBbtEntry(uint32_t dummy);
-extern void sysSchEntry(uint32_t dummy);
-extern void sysPmmEntry(uint32_t dummy);
-extern void sysDphEntry(uint32_t dummy);
-extern void sysLimEntry(uint32_t dummy);
-extern void sysMmhEntry(uint32_t dummy);
-extern void sysMntEntry(uint32_t dummy);
-extern void sysHalEntry(uint32_t dummy);
-extern void sysNimPttEntry(uint32_t dummy);
+QDF_STATUS sys_init_globals(struct mac_context *mac);
 
 #endif /* __SYS_ENTRY_FUNC_H */

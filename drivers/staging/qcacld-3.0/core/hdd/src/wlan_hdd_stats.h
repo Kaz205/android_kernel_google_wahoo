@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -83,29 +80,6 @@ struct index_data_rate_type {
 #ifdef WLAN_FEATURE_LINK_LAYER_STATS
 
 /**
- * struct hdd_ll_stats_context - hdd link layer stats context
- *
- * @request_id: userspace-assigned link layer stats request id
- * @request_bitmap: userspace-assigned link layer stats request bitmap
- * @response_event: LL stats request wait event
- */
-struct hdd_ll_stats_context {
-	uint32_t request_id;
-	uint32_t request_bitmap;
-	struct completion response_event;
-	spinlock_t context_lock;
-};
-
-/*
- * Used to allocate the size of 4096 for the link layer stats.
- * The size of 4096 is considered assuming that all data per
- * respective event fit with in the limit.Please take a call
- * on the limit based on the data requirements on link layer
- * statistics.
- */
-#define LL_STATS_EVENT_BUF_SIZE 4096
-
-/**
  * wlan_hdd_cfg80211_ll_stats_set() - set link layer stats
  * @wiphy: Pointer to wiphy
  * @wdev: Pointer to wdev
@@ -148,33 +122,12 @@ int wlan_hdd_cfg80211_ll_stats_clear(struct wiphy *wiphy,
 				     const void *data,
 				     int data_len);
 
-void hdd_init_ll_stats_ctx(void);
+void wlan_hdd_clear_link_layer_stats(struct hdd_adapter *adapter);
 
 static inline bool hdd_link_layer_stats_supported(void)
 {
 	return true;
 }
-
-/**
- * hdd_get_interface_info() - get interface info
- * @adapter: Pointer to device adapter
- * @info: Pointer to interface info
- *
- * Return: bool
- */
-bool hdd_get_interface_info(hdd_adapter_t *adapter,
-			    tpSirWifiInterfaceInfo info);
-
-/**
- * wlan_hdd_ll_stats_get() - Get Link Layer statistics from FW
- * @adapter: Pointer to device adapter
- * @req_id: request id
- * @req_mask: bitmask used by FW for the request
- *
- * Return: 0 on success and error code otherwise
- */
-int wlan_hdd_ll_stats_get(hdd_adapter_t *adapter, uint32_t req_id,
-			  uint32_t req_mask);
 
 /**
  * __wlan_hdd_cfg80211_ll_stats_ext_set_param - config monitor parameters
@@ -189,11 +142,70 @@ int wlan_hdd_cfg80211_ll_stats_ext_set_param(struct wiphy *wiphy,
 					     struct wireless_dev *wdev,
 					     const void *data,
 					     int data_len);
-#else
+/**
+ * hdd_get_interface_info() - get interface info
+ * @adapter: Pointer to device adapter
+ * @info: Pointer to interface info
+ *
+ * Return: bool
+ */
+bool hdd_get_interface_info(struct hdd_adapter *adapter,
+			    struct wifi_interface_info *info);
 
-static inline void hdd_init_ll_stats_ctx(void)
-{
-}
+/**
+ * wlan_hdd_ll_stats_get() - Get Link Layer statistics from FW
+ * @adapter: Pointer to device adapter
+ * @req_id: request id
+ * @req_mask: bitmask used by FW for the request
+ *
+ * Return: 0 on success and error code otherwise
+ */
+int wlan_hdd_ll_stats_get(struct hdd_adapter *adapter, uint32_t req_id,
+			  uint32_t req_mask);
+
+/**
+ * wlan_hdd_cfg80211_link_layer_stats_callback() - This function is called
+ * @hdd_handle: Handle to HDD context
+ * @indication_type: Indication type
+ * @results: Pointer to results
+ * @cookie: Callback context
+ *
+ * After receiving Link Layer indications from FW.This callback converts the
+ * firmware data to the NL data and send the same to the kernel/upper layers.
+ *
+ * Return: None
+ */
+void wlan_hdd_cfg80211_link_layer_stats_callback(hdd_handle_t hdd_handle,
+						 int indication_type,
+						 tSirLLStatsResults *results,
+						 void *cookie);
+
+/**
+ * wlan_hdd_cfg80211_link_layer_stats_ext_callback() - Callback for LL ext
+ * @ctx: HDD context
+ * @rsp: msg from FW
+ *
+ * This function is an extension of
+ * wlan_hdd_cfg80211_link_layer_stats_callback. It converts
+ * monitoring parameters offloaded to NL data and send the same to the
+ * kernel/upper layers.
+ *
+ * Return: None.
+ */
+void wlan_hdd_cfg80211_link_layer_stats_ext_callback(hdd_handle_t ctx,
+						     tSirLLStatsResults *rsp);
+
+/**
+ * hdd_lost_link_info_cb() - callback function to get lost link information
+ * @hdd_handle: Opaque handle for the HDD context
+ * @lost_link_info: lost link information
+ *
+ * Return: none
+ */
+void hdd_lost_link_info_cb(hdd_handle_t hdd_handle,
+			   struct sir_lost_link_info *lost_link_info);
+
+#else /* WLAN_FEATURE_LINK_LAYER_STATS */
 
 static inline bool hdd_link_layer_stats_supported(void)
 {
@@ -207,6 +219,38 @@ wlan_hdd_cfg80211_ll_stats_ext_set_param(struct wiphy *wiphy,
 					 int data_len)
 {
 	return -EINVAL;
+}
+
+static inline int
+wlan_hdd_ll_stats_get(struct hdd_adapter *adapter, uint32_t req_id,
+		      uint32_t req_mask)
+{
+	return -EINVAL;
+}
+
+static inline void
+wlan_hdd_clear_link_layer_stats(struct hdd_adapter *adapter)
+{
+}
+
+static inline void
+wlan_hdd_cfg80211_link_layer_stats_callback(hdd_handle_t hdd_handle,
+					    int indication_type,
+					    tSirLLStatsResults *results,
+					    void *cookie)
+{
+}
+
+static inline void
+wlan_hdd_cfg80211_link_layer_stats_ext_callback(hdd_handle_t ctx,
+						tSirLLStatsResults *rsp)
+{
+}
+
+static inline void
+hdd_lost_link_info_cb(hdd_handle_t hdd_handle,
+		      struct sir_lost_link_info *lost_link_info)
+{
 }
 
 #endif /* End of WLAN_FEATURE_LINK_LAYER_STATS */
@@ -226,8 +270,6 @@ int wlan_hdd_cfg80211_stats_ext_request(struct wiphy *wiphy,
 					const void *data,
 					int data_len);
 
-#else
-static inline void wlan_hdd_cfg80211_stats_ext_init(hdd_context_t *pHddCtx) {}
 #endif /* End of WLAN_FEATURE_STATS_EXT */
 
 /**
@@ -273,21 +315,26 @@ int wlan_hdd_cfg80211_dump_survey(struct wiphy *wiphy,
 void hdd_display_hif_stats(void);
 void hdd_clear_hif_stats(void);
 
-void wlan_hdd_cfg80211_stats_ext_callback(void *ctx,
-					  tStatsExtEvent *msg);
+/**
+ * wlan_hdd_cfg80211_stats_ext_callback() - ext stats callback
+ * @hdd_handle: Opaque handle to HDD context
+ * @data: ext stats payload
+ *
+ * Return: nothing
+ */
+void wlan_hdd_cfg80211_stats_ext_callback(hdd_handle_t hdd_handle,
+					  struct stats_ext_event *data);
 
 /**
- * wlan_hdd_cfg80211_stats_ext2_callback - stats_ext2_callback
- * @ctx: hdd context
- * @pmsg: stats_ext2_event
+ * wlan_hdd_cfg80211_stats_ext2_callback() - stats_ext2_callback
+ * @hdd_handle: opaque handle to the hdd context
+ * @pmsg: sir_sme_rx_aggr_hole_ind
  *
  * Return: void
  */
-void wlan_hdd_cfg80211_stats_ext2_callback(void *ctx,
-	struct stats_ext2_event *pmsg);
-
-void wlan_hdd_cfg80211_link_layer_stats_callback(void *ctx,
-						 int indType, void *pRsp);
+void
+wlan_hdd_cfg80211_stats_ext2_callback(hdd_handle_t hdd_handle,
+				      struct sir_sme_rx_aggr_hole_ind *pmsg);
 
 /**
  * wlan_hdd_get_rcpi() - Wrapper to get current RCPI
@@ -301,23 +348,162 @@ void wlan_hdd_cfg80211_link_layer_stats_callback(void *ctx,
  *
  * Return: 0 for success, non-zero for failure
  */
-int wlan_hdd_get_rcpi(hdd_adapter_t *adapter, uint8_t *mac,
+int wlan_hdd_get_rcpi(struct hdd_adapter *adapter, uint8_t *mac,
 		      int32_t *rcpi_value,
 		      enum rcpi_measurement_type measurement_type);
 
+#ifdef WLAN_FEATURE_MIB_STATS
 /**
- * wlan_hdd_cfg80211_link_layer_stats_ext_callback() - Callback for LL ext
- * @ctx: HDD context
- * @rsp: msg from FW
+ * wlan_hdd_get_mib_stats() - Get the mib statistics
+ * @adapter: adapter upon which the measurement is requested
  *
- * This function is an extension of
- * wlan_hdd_cfg80211_link_layer_stats_callback. It converts
- * monitoring parameters offloaded to NL data and send the same to the
- * kernel/upper layers.
- *
- * Return: None.
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
  */
-void wlan_hdd_cfg80211_link_layer_stats_ext_callback(tHddHandle ctx,
-						     tSirLLStatsResults *rsp);
-#endif /* end #if !defined(WLAN_HDD_STATS_H) */
+QDF_STATUS wlan_hdd_get_mib_stats(struct hdd_adapter *adapter);
+#endif
 
+/**
+ * wlan_hdd_get_rssi() - Get the current RSSI
+ * @adapter: adapter upon which the measurement is requested
+ * @rssi_value: pointer to where the RSSI should be returned
+ *
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
+ */
+QDF_STATUS wlan_hdd_get_rssi(struct hdd_adapter *adapter, int8_t *rssi_value);
+
+/**
+ * wlan_hdd_get_snr() - Get the current SNR
+ * @adapter: adapter upon which the measurement is requested
+ * @snr: pointer to where the SNR should be returned
+ *
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
+ */
+QDF_STATUS wlan_hdd_get_snr(struct hdd_adapter *adapter, int8_t *snr);
+
+/**
+ * wlan_hdd_get_linkspeed_for_peermac() - Get link speed for a peer
+ * @adapter: adapter upon which the peer is active
+ * @mac_address: MAC address of the peer
+ * @linkspeed: pointer to memory where returned link speed is to be placed
+ *
+ * This function will send a query to SME for the linkspeed of the
+ * given peer, and then wait for the callback to be invoked.
+ *
+ * Return: 0 if linkspeed data is available, negative errno otherwise
+ */
+int wlan_hdd_get_linkspeed_for_peermac(struct hdd_adapter *adapter,
+				       struct qdf_mac_addr *mac_address,
+				       uint32_t *linkspeed);
+
+/**
+ * wlan_hdd_get_link_speed() - get link speed
+ * @adapter:     pointer to the adapter
+ * @link_speed:   pointer to link speed
+ *
+ * This function fetches per bssid link speed.
+ *
+ * Return: if associated, link speed shall be returned.
+ *         if not associated, link speed of 0 is returned.
+ *         On error, error number will be returned.
+ */
+int wlan_hdd_get_link_speed(struct hdd_adapter *adapter, uint32_t *link_speed);
+
+/**
+ * wlan_hdd_get_peer_info() - get peer info
+ * @adapter: hostapd interface
+ * @macaddress: request peer mac address
+ * @peer_info_ext: one peer extended info retrieved
+ *
+ * This function will call sme_get_peer_info_ext to get peer info
+ *
+ * Return: 0 on success, otherwise error value
+ */
+int wlan_hdd_get_peer_info(struct hdd_adapter *adapter,
+			   struct qdf_mac_addr macaddress,
+			   struct sir_peer_info_ext *peer_info_ext);
+/**
+ * wlan_hdd_get_station_stats() - Get station statistics
+ * @adapter: adapter for which statistics are desired
+ *
+ * Return: status of operation
+ */
+int wlan_hdd_get_station_stats(struct hdd_adapter *adapter);
+
+/**
+ * wlan_hdd_get_temperature() - get current device temperature
+ * @adapter: device upon which the request was made
+ * @temperature: pointer to where the temperature is to be returned
+ *
+ * Return: 0 if a temperature value (either current or cached) was
+ * returned, otherwise a negative errno is returned.
+ *
+ */
+int wlan_hdd_get_temperature(struct hdd_adapter *adapter, int *temperature);
+
+/**
+ * wlan_hdd_display_txrx_stats() - display HDD txrx stats summary
+ * @hdd_ctx: hdd context
+ *
+ * Display TXRX Stats for all adapters
+ *
+ * Return: none
+ */
+void wlan_hdd_display_txrx_stats(struct hdd_context *hdd_ctx);
+
+/**
+ * hdd_report_max_rate() - Fill the max rate stats in the station info structure
+ * to be sent to the userspace.
+ *
+ * @mac_handle: The mac handle
+ * @rate: The station_info tx/rx rate to be filled
+ * @signal: signal from station_info
+ * @rate_flags: TX/RX rate flags computed from tx/rx rate
+ * @mcs_index; The TX/RX mcs index computed from tx/rx rate
+ * @fw_rate: The tx/rx rate from fw stats
+ * @nss: The TX/RX NSS from fw stats
+ *
+ * Return: True if fill is successful
+ */
+bool hdd_report_max_rate(mac_handle_t mac_handle,
+			 struct rate_info *rate,
+			 int8_t signal,
+			 enum tx_rate_info rate_flags,
+			 uint8_t mcs_index,
+			 uint16_t fw_rate, uint8_t nss);
+
+/**
+ * hdd_check_and_update_nss() - Check and update NSS as per DBS capability
+ * @hdd_ctx: HDD Context pointer
+ * @tx_nss: pointer to variable storing the tx_nss
+ * @rx_nss: pointer to variable storing the rx_nss
+ *
+ * The parameters include the NSS obtained from the FW or static NSS. This NSS
+ * could be invalid in the case the current HW mode is DBS where the connection
+ * are 1x1. Rectify these NSS values as per the current HW mode.
+ *
+ * Return: none
+ */
+void hdd_check_and_update_nss(struct hdd_context *hdd_ctx,
+			      uint8_t *tx_nss, uint8_t *rx_nss);
+#ifdef QCA_SUPPORT_CP_STATS
+/**
+ * wlan_hdd_register_cp_stats_cb() - Register hdd stats specific
+ * callbacks to the cp stats component
+ * @hdd_ctx: hdd context
+ *
+ * Return: none
+ */
+
+void wlan_hdd_register_cp_stats_cb(struct hdd_context *hdd_ctx);
+#else
+static inline void wlan_hdd_register_cp_stats_cb(struct hdd_context *hdd_ctx) {}
+#endif
+
+/**
+ * hdd_update_sta_arp_stats() - update arp stats
+ * @adapter: adapter context
+ *
+ * Return: An error code or 0 on success.
+ */
+QDF_STATUS hdd_update_sta_arp_stats(struct hdd_adapter *adapter);
+#endif /* end #if !defined(WLAN_HDD_STATS_H) */

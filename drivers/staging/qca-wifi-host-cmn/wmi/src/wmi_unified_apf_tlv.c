@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,18 +16,15 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #include "wmi_unified_apf_tlv.h"
+#include "wmi.h"
 
-QDF_STATUS send_set_active_apf_mode_cmd_tlv(wmi_unified_t wmi_handle,
+QDF_STATUS wmi_send_set_active_apf_mode_cmd_tlv(wmi_unified_t wmi_handle,
 					    uint8_t vdev_id,
-					    FW_ACTIVE_BPF_MODE ucast_mode,
-					    FW_ACTIVE_BPF_MODE mcast_bcast_mode)
+					    enum wmi_host_active_apf_mode
+								     ucast_mode,
+					    enum wmi_host_active_apf_mode
+							       mcast_bcast_mode)
 {
 	const WMITLV_TAG_ID tag_id =
 		WMITLV_TAG_STRUC_wmi_bpf_set_vdev_active_mode_cmd_fixed_param;
@@ -72,8 +66,9 @@ QDF_STATUS send_set_active_apf_mode_cmd_tlv(wmi_unified_t wmi_handle,
 	return QDF_STATUS_SUCCESS;
 }
 
-QDF_STATUS send_apf_enable_cmd_tlv(wmi_unified_t wmi_handle,
-				   uint32_t vdev_id, bool enable)
+QDF_STATUS wmi_send_apf_enable_cmd_tlv(wmi_unified_t wmi_handle,
+				       uint32_t vdev_id,
+				       bool enable)
 {
 	wmi_bpf_set_vdev_enable_cmd_fixed_param *cmd;
 	wmi_buf_t buf;
@@ -104,9 +99,9 @@ QDF_STATUS send_apf_enable_cmd_tlv(wmi_unified_t wmi_handle,
 }
 
 QDF_STATUS
-send_apf_write_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
-				   struct wmi_apf_write_memory_params
-							*apf_write_params)
+wmi_send_apf_write_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
+				       struct wmi_apf_write_memory_params
+							      *apf_write_params)
 {
 	wmi_bpf_set_vdev_work_memory_cmd_fixed_param *cmd;
 	uint32_t wmi_buf_len;
@@ -161,9 +156,9 @@ send_apf_write_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
 }
 
 QDF_STATUS
-send_apf_read_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
-				  struct wmi_apf_read_memory_params
-							*apf_read_params)
+wmi_send_apf_read_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
+				      struct wmi_apf_read_memory_params
+							       *apf_read_params)
 {
 	wmi_bpf_get_vdev_work_memory_cmd_fixed_param *cmd;
 	wmi_buf_t buf;
@@ -196,8 +191,10 @@ send_apf_read_work_memory_cmd_tlv(wmi_unified_t wmi_handle,
 }
 
 QDF_STATUS
-extract_apf_read_memory_resp_event_tlv(wmi_unified_t wmi_handle, void *evt_buf,
-			struct wmi_apf_read_memory_resp_event_params *resp)
+wmi_extract_apf_read_memory_resp_event_tlv(wmi_unified_t wmi_handle,
+				void *evt_buf,
+				struct wmi_apf_read_memory_resp_event_params
+									  *resp)
 {
 	WMI_BPF_GET_VDEV_WORK_MEMORY_RESP_EVENTID_param_tlvs *param_buf;
 	wmi_bpf_get_vdev_work_memory_resp_evt_fixed_param *data_event;
@@ -220,10 +217,11 @@ extract_apf_read_memory_resp_event_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 			 param_buf->num_data);
 		return QDF_STATUS_E_INVAL;
 	}
-	resp->length = data_event->length;
 
-	if (resp->length)
+	if (data_event->length && param_buf->data) {
+		resp->length = data_event->length;
 		resp->data = (uint8_t *)param_buf->data;
+	}
 
 	return QDF_STATUS_SUCCESS;
 }

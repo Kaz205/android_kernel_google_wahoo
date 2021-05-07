@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -41,18 +32,10 @@
 
 #include "sir_types.h"
 #include "sir_mac_prot_def.h"
-
-#define ANI_OUI  0x000AF5
-
-/* / Max WDS info length. */
-#define ANI_WDS_INFO_MAX_LENGTH        64
+#include "wlan_crypto_global_def.h"
 
 /* This is to force compiler to use the maximum of an int for enum */
 #define SIR_MAX_ENUM_SIZE    0x7FFFFFFF
-
-/* Max key size  including the WAPI and TKIP */
-#define WLAN_MAX_KEY_RSC_LEN         16
-#define WLAN_WAPI_KEY_RSC_LEN        16
 
 #ifndef false
 #undef false
@@ -72,12 +55,44 @@ typedef enum eAniAuthType {
 #if defined FEATURE_WLAN_ESE
 	eSIR_LEAP_AUTH = 0x80,
 #endif
-	eSIR_FILS_SK_WITHOUT_PFS = 4,
-	eSIR_FILS_SK_WITH_PFS = 5,
-	eSIR_FILS_PK_AUTH = 6,
+	SIR_FILS_SK_WITHOUT_PFS = 4,
+	SIR_FILS_SK_WITH_PFS = 5,
+	SIR_FILS_PK_AUTH = 6,
+	eSIR_AUTH_TYPE_OWE,
 	eSIR_AUTO_SWITCH,
 	eSIR_DONOT_USE_AUTH_TYPE = SIR_MAX_ENUM_SIZE
 } tAniAuthType;
+
+enum ani_akm_type {
+	ANI_AKM_TYPE_NONE,
+	ANI_AKM_TYPE_RSN,
+	ANI_AKM_TYPE_RSN_PSK,
+	ANI_AKM_TYPE_FT_RSN,
+	ANI_AKM_TYPE_FT_RSN_PSK,
+	ANI_AKM_TYPE_RSN_PSK_SHA256,
+	ANI_AKM_TYPE_RSN_8021X_SHA256,
+#ifdef WLAN_FEATURE_SAE
+	ANI_AKM_TYPE_SAE,
+	ANI_AKM_TYPE_FT_SAE,
+#endif
+	ANI_AKM_TYPE_SUITEB_EAP_SHA256,
+	ANI_AKM_TYPE_SUITEB_EAP_SHA384,
+	ANI_AKM_TYPE_FT_SUITEB_EAP_SHA384,
+	ANI_AKM_TYPE_FILS_SHA256,
+	ANI_AKM_TYPE_FILS_SHA384,
+	ANI_AKM_TYPE_FT_FILS_SHA256,
+	ANI_AKM_TYPE_FT_FILS_SHA384,
+	ANI_AKM_TYPE_OWE,
+#ifdef FEATURE_WLAN_ESE
+	ANI_AKM_TYPE_CCKM,
+#endif
+	ANI_AKM_TYPE_OSEN,
+	ANI_AKM_TYPE_DPP_RSN,
+	ANI_AKM_TYPE_WPA,
+	ANI_AKM_TYPE_WPA_PSK,
+	ANI_NUM_OF_SUPPORT_AKM_TYPE,
+	ANI_AKM_TYPE_UNKNOWN = 0xff,
+};
 
 /* / Encryption type enum used with peer */
 typedef enum eAniEdType {
@@ -101,11 +116,6 @@ typedef enum eAniEdType {
 	eSIR_ED_NOT_IMPLEMENTED = SIR_MAX_ENUM_SIZE
 } tAniEdType;
 
-typedef enum eAniWepType {
-	eSIR_WEP_STATIC,
-	eSIR_WEP_DYNAMIC,
-} tAniWepType;
-
 /* / Enum to specify whether key is used */
 /* / for TX only, RX only or both */
 typedef enum eAniKeyDirection {
@@ -118,23 +128,18 @@ typedef enum eAniKeyDirection {
 
 typedef struct sAniSSID {
 	uint8_t length;
-	uint8_t ssId[SIR_MAC_MAX_SSID_LENGTH];
+	uint8_t ssId[WLAN_SSID_MAX_LEN];
 } tAniSSID, *tpAniSSID;
-
-typedef struct sAniApName {
-	uint8_t length;
-	uint8_t name[SIR_MAC_MAX_SSID_LENGTH];
-} tAniApName, *tpAniApName;
 
 /* / RSN IE information */
 typedef struct sSirRSNie {
 	uint16_t length;
-	uint8_t rsnIEdata[SIR_MAC_MAX_IE_LENGTH + 2];
+	uint8_t rsnIEdata[WLAN_MAX_IE_LEN + 2];
 } tSirRSNie, *tpSirRSNie;
 
 typedef struct sSirWAPIie {
 	uint16_t length;
-	uint8_t wapiIEdata[SIR_MAC_MAX_IE_LENGTH + 2];
+	uint8_t wapiIEdata[WLAN_MAX_IE_LEN + 2];
 } tSirWAPIie, *tpSirWAPIie;
 /* / Additional IE information : */
 /* / This can include WSC IE, P2P IE, and/or FTIE from upper layer. */
@@ -151,7 +156,7 @@ typedef struct sSirAddie {
 /* Join and Reassoc Req. */
 typedef struct sSirCCKMie {
 	uint16_t length;
-	uint8_t cckmIEdata[SIR_MAC_MAX_IE_LENGTH + 2];
+	uint8_t cckmIEdata[WLAN_MAX_IE_LEN + 2];
 } tSirCCKMie, *tpSirCCKMie;
 
 #endif
@@ -161,7 +166,7 @@ typedef struct sSirKeys {
 	uint8_t keyId;
 	uint8_t unicast;        /* 0 for multicast */
 	tAniKeyDirection keyDirection;
-	uint8_t keyRsc[WLAN_MAX_KEY_RSC_LEN];   /* Usage is unknown */
+	uint8_t keyRsc[WLAN_CRYPTO_RSC_SIZE];   /* Usage is unknown */
 	uint8_t paeRole;        /* =1 for authenticator, */
 	/* =0 for supplicant */
 	uint16_t keyLength;

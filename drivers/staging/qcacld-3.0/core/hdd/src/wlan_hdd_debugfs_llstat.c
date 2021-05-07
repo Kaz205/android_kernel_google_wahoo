@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,8 +23,9 @@
  * debugfs with Link Layer statistics
  */
 
-#include <wlan_hdd_debugfs_llstat.h>
 #include <cds_sched.h>
+#include "osif_sync.h"
+#include <wlan_hdd_debugfs_llstat.h>
 #include <wlan_hdd_stats.h>
 #include <wma_api.h>
 
@@ -40,19 +38,20 @@ static struct ll_stats_buf ll_stats;
 
 static DEFINE_MUTEX(llstats_mutex);
 
-void hdd_debugfs_process_iface_stats(hdd_adapter_t *adapter,
+void hdd_debugfs_process_iface_stats(struct hdd_adapter *adapter,
 		void *data, uint32_t num_peers)
 {
-	tpSirWifiIfaceStat iface_stat;
-	tpSirWifiInterfaceInfo iface_info;
-	tpSirWifiWmmAcStat ac_stat;
-	struct wifi_iface_offload_stat *offload_stat;
+	struct wifi_interface_stats *iface_stat;
+	struct wifi_interface_info *iface_info;
+	wmi_iface_link_stats *link_stats;
+	wmi_wmm_ac_stats *ac_stats;
+	wmi_iface_offload_stats *offload_stats;
 	uint64_t average_tsf_offset;
 	int i;
 	ssize_t len = 0;
 	uint8_t *buffer;
 
-	ENTER();
+	hdd_enter();
 
 	mutex_lock(&llstats_mutex);
 	if (!ll_stats.result) {
@@ -77,54 +76,59 @@ void hdd_debugfs_process_iface_stats(hdd_adapter_t *adapter,
 	buffer += len;
 	ll_stats.len += len;
 	len = scnprintf(buffer, DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-			"\nmode: %u, MAC_ADDR: %pM, state: %u, roaming: %u, capabilities: %u, SSID: %s, BSSID_MAC: %pM, ap_country_str: %s, country_str: %s",
-			iface_info->mode, &iface_info->macAddr.bytes[0],
+			"\nmode: %u, MAC_ADDR: "QDF_FULL_MAC_FMT", state: %u, roaming: %u, capabilities: %u, SSID: %s, BSSID_MAC: "QDF_FULL_MAC_FMT", ap_country_str: %s, country_str: %s",
+			iface_info->mode,
+			QDF_FULL_MAC_REF(iface_info->macAddr.bytes),
 			iface_info->state, iface_info->roaming,
 			iface_info->capabilities, iface_info->ssid,
-			&iface_info->bssid.bytes[0], iface_info->apCountryStr,
+			QDF_FULL_MAC_REF(iface_info->bssid.bytes),
+			iface_info->apCountryStr,
 			iface_info->countryStr);
 
-	average_tsf_offset =  iface_stat->avg_bcn_spread_offset_high;
+	link_stats = &iface_stat->link_stats;
+	average_tsf_offset =  link_stats->avg_bcn_spread_offset_high;
 	average_tsf_offset =  (average_tsf_offset << 32) |
-				iface_stat->avg_bcn_spread_offset_low;
+				link_stats->avg_bcn_spread_offset_low;
 
 	buffer += len;
 	ll_stats.len += len;
 	len = scnprintf(buffer, DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-			"\nbeacon_rx: %u, mgmt_rx: %u, mgmt_action_rx: %u, mgmt_action_tx: %u, rssi_mgmt: %u, rssi_data: %u, rssi_ack: %u, is_leaky_ap: %u, avg_rx_frms_leaked: %u, rx_leak_window: %u, average_tsf_offset: %llu, Tx RTS success count: %u, Tx RTS fail count: %u, Tx ppdu success count: %u, Tx ppdu fail count: %u, Connected duration: %u, Disconnected duration: %u, RTT ranging duration: %u, RTT responder duration: %u, Num tx probes: %u, Num beacon miss: %u,\n\nNumber of AC: %d",
-			iface_stat->beaconRx, iface_stat->mgmtRx,
-			iface_stat->mgmtActionRx, iface_stat->mgmtActionTx,
-			iface_stat->rssiMgmt, iface_stat->rssiData,
-			iface_stat->rssiAck, iface_stat->is_leaky_ap,
-			iface_stat->avg_rx_frms_leaked,
-			iface_stat->rx_leak_window, average_tsf_offset,
-			iface_stat->tx_rts_succ_cnt,
-			iface_stat->tx_rts_fail_cnt,
-			iface_stat->tx_ppdu_succ_cnt,
-			iface_stat->tx_ppdu_fail_cnt,
-			iface_stat->connected_duration,
-			iface_stat->disconnected_duration,
-			iface_stat->rtt_ranging_duration,
-			iface_stat->rtt_responder_duration,
-			iface_stat->num_probes_tx, iface_stat->num_beacon_miss,
-			iface_stat->num_ac);
+			"\nbeacon_rx: %u, mgmt_rx: %u, mgmt_action_rx: %u, mgmt_action_tx: %u, rssi_mgmt: %d, rssi_data: %d, rssi_ack: %d, is_leaky_ap: %u, avg_rx_frms_leaked: %u, rx_leak_window: %u, average_tsf_offset: %llu, Tx RTS success count: %u, Tx RTS fail count: %u, Tx ppdu success count: %u, Tx ppdu fail count: %u, Connected duration: %u, Disconnected duration: %u, RTT ranging duration: %u, RTT responder duration: %u, Num tx probes: %u, Num beacon miss: %u,\n\nNumber of AC: %d",
+			link_stats->beacon_rx, link_stats->mgmt_rx,
+			link_stats->mgmt_action_rx, link_stats->mgmt_action_tx,
+			link_stats->rssi_mgmt, link_stats->rssi_data,
+			link_stats->rssi_ack, link_stats->is_leaky_ap,
+			link_stats->avg_rx_frms_leaked,
+			link_stats->rx_leak_window, average_tsf_offset,
+			link_stats->tx_rts_succ_cnt,
+			link_stats->tx_rts_fail_cnt,
+			link_stats->tx_ppdu_succ_cnt,
+			link_stats->tx_ppdu_fail_cnt,
+			link_stats->connected_duration,
+			link_stats->disconnected_duration,
+			link_stats->rtt_ranging_duration,
+			link_stats->rtt_responder_duration,
+			link_stats->num_probes_tx, link_stats->num_beacon_miss,
+			link_stats->num_ac);
 
-	for (i = 0; i < iface_stat->num_ac; i++) {
-		ac_stat = &iface_stat->AccessclassStats[i];
+	for (i = 0; i < link_stats->num_ac; i++) {
+		ac_stats = &iface_stat->ac_stats[i];
 		buffer += len;
 		ll_stats.len += len;
 		len = scnprintf(buffer,
 				DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-				"\nAC: %d, tx_mpdu: %u, rx_mpdu: %u, tx_mcast: %u, rx_mcast: %u, rx_ampdu: %u tx_ampdu: %u, mpdu_lost: %u, retries: %u, retries_short: %u, retries_long: %u, contention_time: min-%u max-%u avg-%u, contention num samples: %u",
-				ac_stat->ac, ac_stat->txMpdu, ac_stat->rxMpdu,
-				ac_stat->txMcast, ac_stat->rxMcast,
-				ac_stat->rxAmpdu, ac_stat->txAmpdu,
-				ac_stat->mpduLost, ac_stat->retries,
-				ac_stat->retriesShort, ac_stat->retriesLong,
-				ac_stat->contentionTimeMin,
-				ac_stat->contentionTimeMax,
-				ac_stat->contentionTimeAvg,
-				ac_stat->contentionNumSamples);
+				"\nac_type: %d, tx_mpdu: %u, rx_mpdu: %u, tx_mcast: %u, rx_mcast: %u, rx_ampdu: %u tx_ampdu: %u, mpdu_lost: %u, retries: %u, retries_short: %u, retries_long: %u, contention_time: min-%u max-%u avg-%u, contention num samples: %u, tx_pending_msdu: %u",
+				ac_stats->ac_type,
+				ac_stats->tx_mpdu, ac_stats->rx_mpdu,
+				ac_stats->tx_mcast, ac_stats->rx_mcast,
+				ac_stats->rx_ampdu, ac_stats->rx_ampdu,
+				ac_stats->mpdu_lost, ac_stats->retries,
+				ac_stats->retries_short, ac_stats->retries_long,
+				ac_stats->contention_time_min,
+				ac_stats->contention_time_max,
+				ac_stats->contention_time_avg,
+				ac_stats->contention_num_samples,
+				ac_stats->tx_pending_msdu);
 	}
 
 	buffer += len;
@@ -134,32 +138,32 @@ void hdd_debugfs_process_iface_stats(hdd_adapter_t *adapter,
 			iface_stat->num_offload_stats);
 
 	for (i = 0; i < iface_stat->num_offload_stats; i++) {
-		offload_stat = &iface_stat->offload_stat[i];
+		offload_stats = &iface_stat->offload_stats[i];
 		buffer += len;
 		ll_stats.len += len;
 		len = scnprintf(buffer,
 				DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
 				"\ntype: %d, rx_count: %u, drp_count: %u, fwd_count: %u",
-				offload_stat->type, offload_stat->rx_count,
-				offload_stat->drp_count,
-				offload_stat->fwd_count);
+				offload_stats->type, offload_stats->rx_count,
+				offload_stats->drp_count,
+				offload_stats->fwd_count);
 	}
 
 	ll_stats.len += len;
 	mutex_unlock(&llstats_mutex);
-	EXIT();
+	hdd_exit();
 }
 
-void hdd_debugfs_process_peer_stats(hdd_adapter_t *adapter, void *data)
+void hdd_debugfs_process_peer_stats(struct hdd_adapter *adapter, void *data)
 {
-	tpSirWifiPeerStat peer_stat;
-	tpSirWifiPeerInfo peer_info;
-	tpSirWifiRateStat rate_stat;
+	struct wifi_peer_stat *peer_stat;
+	struct wifi_peer_info *peer_info;
+	struct wifi_rate_stat *rate_stat;
 	int i, j, num_rate;
 	ssize_t len = 0;
 	uint8_t *buffer;
 
-	ENTER();
+	hdd_enter();
 
 	mutex_lock(&llstats_mutex);
 	if (!ll_stats.result) {
@@ -168,63 +172,62 @@ void hdd_debugfs_process_peer_stats(hdd_adapter_t *adapter, void *data)
 		return;
 	}
 
-	peer_stat = (tpSirWifiPeerStat) data;
+	peer_stat = data;
 
 	buffer = ll_stats.result;
 	buffer += ll_stats.len;
 	len = scnprintf(buffer, DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
 			"\n\n===LL_STATS_PEER_ALL : num_peers %u===",
-			peer_stat->numPeers);
+			peer_stat->num_peers);
 
-	peer_info = (tpSirWifiPeerInfo) ((uint8_t *) peer_stat->peerInfo);
-	for (i = 1; i <= peer_stat->numPeers; i++) {
+	peer_info = peer_stat->peer_info;
+	for (i = 1; i <= peer_stat->num_peers; i++) {
 		buffer += len;
 		ll_stats.len += len;
 		len = scnprintf(buffer,
 				DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-				"\nType: %d, peer_mac: %pM, capabilities: %u\nnum_rates: %d",
+				"\nType: %d, peer_mac: "QDF_FULL_MAC_FMT", capabilities: %u\nnum_rates: %d",
 				wmi_to_sir_peer_type(peer_info->type),
-				&peer_info->peerMacAddress.bytes[0],
-				peer_info->capabilities, peer_info->numRate);
+				QDF_FULL_MAC_REF(peer_info->peer_macaddr.bytes),
+				peer_info->capabilities, peer_info->num_rate);
 
-		num_rate = peer_info->numRate;
+		num_rate = peer_info->num_rate;
 		for (j = 0; j < num_rate; j++) {
-			rate_stat = (tpSirWifiRateStat) ((uint8_t *)
-					peer_info->rateStats + (j *
-					sizeof(tSirWifiRateStat)));
+			rate_stat = &peer_info->rate_stats[j];
 			buffer += len;
 			ll_stats.len += len;
 			len = scnprintf(buffer,
 				DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
 				"\npreamble: %0x, nss: %0x, bw: %0x, mcs: %0x, bitrate: %0x, txmpdu: %u, rxmpdu: %u, mpdu_lost: %u, retries: %u, retries_short: %u, retries_long: %u",
 				rate_stat->rate.preamble, rate_stat->rate.nss,
-				rate_stat->rate.bw, rate_stat->rate.rateMcsIdx,
-				rate_stat->rate.bitrate, rate_stat->txMpdu,
-				rate_stat->rxMpdu, rate_stat->mpduLost,
-				rate_stat->retries, rate_stat->retriesShort,
-				rate_stat->retriesLong);
+				rate_stat->rate.bw,
+				rate_stat->rate.rate_or_mcs_index,
+				rate_stat->rate.bitrate, rate_stat->tx_mpdu,
+				rate_stat->rx_mpdu, rate_stat->mpdu_lost,
+				rate_stat->retries, rate_stat->retries_short,
+				rate_stat->retries_long);
 		}
-		peer_info = (tpSirWifiPeerInfo) ((uint8_t *)
-				peer_stat->peerInfo + (i *
-				sizeof(tSirWifiPeerInfo)) +
-				(num_rate * sizeof(tSirWifiRateStat)));
+		peer_info = (struct wifi_peer_info *) ((uint8_t *)
+				peer_stat->peer_info + (i *
+				sizeof(struct wifi_peer_info)) +
+				(num_rate * sizeof(struct wifi_rate_stat)));
 	}
 	ll_stats.len += len;
 	mutex_unlock(&llstats_mutex);
-	EXIT();
+	hdd_exit();
 
 }
 
-void hdd_debugfs_process_radio_stats(hdd_adapter_t *adapter,
+void hdd_debugfs_process_radio_stats(struct hdd_adapter *adapter,
 		uint32_t more_data, void *data, uint32_t num_radio)
 {
 	int i, j;
 	ssize_t len = 0;
 	uint8_t *buffer;
-	tSirWifiRadioStat *radio_stat = (tpSirWifiRadioStat) data;
-	tSirWifiChannelStats *chan_stat;
+	struct wifi_radio_stats *radio_stat = (struct wifi_radio_stats *) data;
+	struct wifi_channel_stats *chan_stat;
 
-	ENTER();
+	hdd_enter();
 
 	mutex_lock(&llstats_mutex);
 	if (!ll_stats.result) {
@@ -245,13 +248,13 @@ void hdd_debugfs_process_radio_stats(hdd_adapter_t *adapter,
 		len = scnprintf(buffer,
 			DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
 			"\nRadio: %u on_time: %u, tx_time: %u, rx_time: %u, on_time_scan: %u, on_time_nbd: %u, on_time_gscan: %u, on_time_roam_scan: %u, on_time_pno_scan: %u  on_time_hs20: %u, on_time_host_scan: %u, on_time_lpi_scan: %u\ntotal_num_tx_pwr_levels: %u\n",
-			radio_stat->radio, radio_stat->onTime,
-			radio_stat->txTime, radio_stat->rxTime,
-			radio_stat->onTimeScan, radio_stat->onTimeNbd,
-			radio_stat->onTimeGscan,
-			radio_stat->onTimeRoamScan,
-			radio_stat->onTimePnoScan,
-			radio_stat->onTimeHs20,
+			radio_stat->radio, radio_stat->on_time,
+			radio_stat->tx_time, radio_stat->rx_time,
+			radio_stat->on_time_scan, radio_stat->on_time_nbd,
+			radio_stat->on_time_gscan,
+			radio_stat->on_time_roam_scan,
+			radio_stat->on_time_pno_scan,
+			radio_stat->on_time_hs20,
 			radio_stat->on_time_host_scan,
 			radio_stat->on_time_lpi_scan,
 			radio_stat->total_num_tx_power_levels);
@@ -268,30 +271,30 @@ void hdd_debugfs_process_radio_stats(hdd_adapter_t *adapter,
 		ll_stats.len += len;
 		len = scnprintf(buffer,
 			DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-			"\nNum channels: %d", radio_stat->numChannels);
+			"\nNum channels: %d", radio_stat->num_channels);
 
-		for (j = 0; j < radio_stat->numChannels; j++) {
-			chan_stat = (tSirWifiChannelStats *)
+		for (j = 0; j < radio_stat->num_channels; j++) {
+			chan_stat = (struct wifi_channel_stats *)
 					((uint8_t *)radio_stat->channels +
-					  (j * sizeof(tSirWifiChannelStats)));
+					  (j * sizeof(struct wifi_channel_stats)));
 
 			buffer += len;
 			ll_stats.len += len;
 			len = scnprintf(buffer,
 				DEBUGFS_LLSTATS_BUF_SIZE - ll_stats.len,
-				"\nChan width: %d, center_freq: %d, center_freq0: %d, center_freq1: %d, on_time: %d, cca_busy_time: %d",
+				"\nChan width: %u, center_freq: %u, center_freq0: %u, center_freq1: %u, on_time: %u, cca_busy_time: %u",
 				chan_stat->channel.width,
-				chan_stat->channel.centerFreq,
-				chan_stat->channel.centerFreq0,
-				chan_stat->channel.centerFreq1,
-				chan_stat->onTime, chan_stat->ccaBusyTime);
+				chan_stat->channel.center_freq,
+				chan_stat->channel.center_freq0,
+				chan_stat->channel.center_freq1,
+				chan_stat->on_time, chan_stat->cca_busy_time);
 		}
 
 		radio_stat++;
 	}
 	ll_stats.len += len;
 	mutex_unlock(&llstats_mutex);
-	EXIT();
+	hdd_exit();
 }
 
 static inline void wlan_hdd_llstats_free_buf(void)
@@ -315,7 +318,6 @@ static int wlan_hdd_llstats_alloc_buf(void)
 	ll_stats.result = qdf_mem_malloc(DEBUGFS_LLSTATS_BUF_SIZE);
 	if (!ll_stats.result) {
 		mutex_unlock(&llstats_mutex);
-		hdd_err("LL Stats buffer allocation failed");
 		return -EINVAL;
 	}
 	mutex_unlock(&llstats_mutex);
@@ -338,7 +340,7 @@ static ssize_t hdd_debugfs_stats_update(char __user *buf, size_t count,
 {
 	ssize_t ret_cnt;
 
-	ENTER();
+	hdd_enter();
 	mutex_lock(&llstats_mutex);
 	if (!ll_stats.result) {
 		mutex_unlock(&llstats_mutex);
@@ -351,46 +353,46 @@ static ssize_t hdd_debugfs_stats_update(char __user *buf, size_t count,
 	mutex_unlock(&llstats_mutex);
 	hdd_debug("LL stats read req: count: %zu, pos: %lld", count, *pos);
 
-	EXIT();
+	hdd_exit();
 	return ret_cnt;
 }
 
 /**
  * __wlan_hdd_read_ll_stats_debugfs() - API to collect LL stats from FW
- * @file: file pointer
+ * @net_dev: net_device context used to register the debugfs file
  * @buf: buffer
  * @count: count
  * @pos: position pointer
  *
  * Return: Number of bytes read on success, error number otherwise
  */
-static ssize_t __wlan_hdd_read_ll_stats_debugfs(struct file *file,
-			char __user *buf, size_t count, loff_t *pos)
+static ssize_t __wlan_hdd_read_ll_stats_debugfs(struct net_device *net_dev,
+						char __user *buf, size_t count,
+						loff_t *pos)
 {
-	hdd_adapter_t *adapter;
-	hdd_context_t *hdd_ctx;
-	ssize_t ret = 0;
+	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(net_dev);
+	struct hdd_context *hdd_ctx;
+	ssize_t ret;
 
-	ENTER();
+	hdd_enter();
 
-	adapter = (hdd_adapter_t *)file->private_data;
-	if ((!adapter) || (WLAN_HDD_ADAPTER_MAGIC != adapter->magic)) {
+	if (adapter->magic != WLAN_HDD_ADAPTER_MAGIC) {
 		hdd_err("Invalid adapter or adapter has invalid magic");
 		return -EINVAL;
 	}
 
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	ret = wlan_hdd_validate_context(hdd_ctx);
-	if (0 != ret)
+	if (ret)
 		return ret;
 
 	/* All the events are received and buffer is populated */
 	ret = hdd_debugfs_stats_update(buf, count, pos);
-	hdd_info("%zu characters written into debugfs", ret);
+	hdd_debug("%zu characters written into debugfs", ret);
 
-	EXIT();
+	hdd_exit();
+
 	return ret;
-
 }
 
 /**
@@ -403,115 +405,122 @@ static ssize_t __wlan_hdd_read_ll_stats_debugfs(struct file *file,
  * Return: Number of bytes read on success, error number otherwise
  */
 static ssize_t wlan_hdd_read_ll_stats_debugfs(struct file *file,
-		char __user *buf,
-		size_t count, loff_t *pos)
+					      char __user *buf, size_t count,
+					      loff_t *pos)
 {
-	int ret;
+	struct net_device *net_dev = file_inode(file)->i_private;
+	struct osif_vdev_sync *vdev_sync;
+	ssize_t err_size;
 
-	cds_ssr_protect(__func__);
-	ret = __wlan_hdd_read_ll_stats_debugfs(file, buf, count, pos);
-	cds_ssr_unprotect(__func__);
+	err_size = osif_vdev_sync_op_start(net_dev, &vdev_sync);
+	if (err_size)
+		return err_size;
 
-	return ret;
+	err_size = __wlan_hdd_read_ll_stats_debugfs(net_dev, buf, count, pos);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return err_size;
 }
 
 /**
  * __wlan_hdd_open_ll_stats_debugfs() - Function to save private on open
- * @inode: Pointer to inode structure
- * @file: file pointer
+ * @net_dev: net_device context used to register the debugfs file
  *
- * Return: zero
+ * Return: Errno
  */
-static int __wlan_hdd_open_ll_stats_debugfs(struct inode *inode,
-					    struct file *file)
+static int __wlan_hdd_open_ll_stats_debugfs(struct net_device *net_dev)
 {
-	hdd_adapter_t *adapter;
-	hdd_context_t *hdd_ctx;
-	int ret;
+	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(net_dev);
+	struct hdd_context *hdd_ctx;
+	int errno;
 
-	ENTER();
+	hdd_enter();
 
-	if (inode->i_private)
-		file->private_data = inode->i_private;
-
-	adapter = (hdd_adapter_t *)file->private_data;
-	if ((NULL == adapter) || (WLAN_HDD_ADAPTER_MAGIC != adapter->magic)) {
-		hdd_err("Invalid adapter or adapter has invalid magic");
-		return -EINVAL;
-	}
+	errno = hdd_validate_adapter(adapter);
+	if (errno)
+		return errno;
 
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-	ret = wlan_hdd_validate_context(hdd_ctx);
-	if (0 != ret)
-		return ret;
+	errno = wlan_hdd_validate_context(hdd_ctx);
+	if (errno)
+		return errno;
 
-	ret = wlan_hdd_llstats_alloc_buf();
-	if (0 != ret)
-		return ret;
+	errno = wlan_hdd_llstats_alloc_buf();
+	if (errno)
+		return errno;
 
-	ret = wlan_hdd_ll_stats_get(adapter, DEBUGFS_LLSTATS_REQID,
-				    DEBUGFS_LLSTATS_REQMASK);
-	if (0 != ret)
-		return ret;
+	errno = wlan_hdd_ll_stats_get(adapter, DEBUGFS_LLSTATS_REQID,
+				      DEBUGFS_LLSTATS_REQMASK);
+	if (errno)
+		goto free_buf;
 
-	EXIT();
+	hdd_exit();
+
 	return 0;
-}
 
+free_buf:
+	wlan_hdd_llstats_free_buf();
+
+	hdd_exit();
+
+	return errno;
+}
 
 /**
  * wlan_hdd_open_ll_stats_debugfs() - SSR wrapper function to save private
- *                                    on open
+ *	on open
  * @inode: Pointer to inode structure
  * @file: file pointer
  *
- * Return: zero
+ * Return: Errno
  */
 static int wlan_hdd_open_ll_stats_debugfs(struct inode *inode,
 					  struct file *file)
 {
-	int ret;
+	struct net_device *net_dev = inode->i_private;
+	struct osif_vdev_sync *vdev_sync;
+	int errno;
 
-	cds_ssr_protect(__func__);
-	ret = __wlan_hdd_open_ll_stats_debugfs(inode, file);
-	cds_ssr_unprotect(__func__);
+	errno = osif_vdev_sync_op_start(net_dev, &vdev_sync);
+	if (errno)
+		return errno;
 
-	return ret;
+	errno = __wlan_hdd_open_ll_stats_debugfs(net_dev);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return errno;
 }
 
 /**
  * __wlan_hdd_release_ll_stats_debugfs() - Function to save private on release
- * @inode: Pointer to inode structure
- * @file: file pointer
+ * @net_dev: net_device context used to register the debugfs file
  *
- * Return: zero
+ * Return: Errno
  */
-static int __wlan_hdd_release_ll_stats_debugfs(struct inode *inode,
-					    struct file *file)
+static int __wlan_hdd_release_ll_stats_debugfs(struct net_device *net_dev)
 {
-	hdd_adapter_t *adapter;
-	hdd_context_t *hdd_ctx;
+	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(net_dev);
+	struct hdd_context *hdd_ctx;
 	int ret;
 
-	ENTER();
+	hdd_enter();
 
-	if (inode->i_private)
-		file->private_data = inode->i_private;
-
-	adapter = (hdd_adapter_t *)file->private_data;
-	if ((NULL == adapter) || (WLAN_HDD_ADAPTER_MAGIC != adapter->magic)) {
+	if (adapter->magic != WLAN_HDD_ADAPTER_MAGIC) {
 		hdd_err("Invalid adapter or adapter has invalid magic");
 		return -EINVAL;
 	}
 
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	ret = wlan_hdd_validate_context(hdd_ctx);
-	if (0 != ret)
+	if (ret)
 		return ret;
 
 	wlan_hdd_llstats_free_buf();
 
-	EXIT();
+	hdd_exit();
+
 	return 0;
 }
 
@@ -521,18 +530,24 @@ static int __wlan_hdd_release_ll_stats_debugfs(struct inode *inode,
  * @inode: Pointer to inode structure
  * @file: file pointer
  *
- * Return: zero
+ * Return: Errno
  */
 static int wlan_hdd_release_ll_stats_debugfs(struct inode *inode,
-					  struct file *file)
+					     struct file *file)
 {
-	int ret;
+	struct net_device *net_dev = file_inode(file)->i_private;
+	struct osif_vdev_sync *vdev_sync;
+	int errno;
 
-	cds_ssr_protect(__func__);
-	ret = __wlan_hdd_release_ll_stats_debugfs(inode, file);
-	cds_ssr_unprotect(__func__);
+	errno = osif_vdev_sync_op_start(net_dev, &vdev_sync);
+	if (errno)
+		return errno;
 
-	return ret;
+	errno = __wlan_hdd_release_ll_stats_debugfs(net_dev);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return errno;
 }
 
 static const struct file_operations fops_ll_stats_debugfs = {
@@ -543,10 +558,10 @@ static const struct file_operations fops_ll_stats_debugfs = {
 	.llseek = default_llseek,
 };
 
-int wlan_hdd_create_ll_stats_file(hdd_adapter_t *adapter)
+int wlan_hdd_create_ll_stats_file(struct hdd_adapter *adapter)
 {
 	if (!debugfs_create_file("ll_stats", 0444, adapter->debugfs_phy,
-				 adapter, &fops_ll_stats_debugfs))
+				 adapter->dev, &fops_ll_stats_debugfs))
 		return -EINVAL;
 
 	return 0;

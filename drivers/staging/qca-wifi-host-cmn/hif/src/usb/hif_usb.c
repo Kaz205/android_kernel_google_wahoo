@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 #include <qdf_time.h>
 #include <qdf_lock.h>
 #include <qdf_mem.h>
@@ -37,6 +29,11 @@
 #include <hif_debug.h>
 #define ATH_MODULE_NAME hif
 #include <a_debug.h>
+#include "qdf_module.h"
+#include "hif_usb_internal.h"
+#include "if_usb.h"
+#include "usb_api.h"
+#include "target_type.h"
 
 #if defined(WLAN_DEBUG) || defined(DEBUG)
 static ATH_DEBUG_MASK_DESCRIPTION g_hif_debug_description[] = {
@@ -73,9 +70,10 @@ unsigned int hif_usb_disable_rxdata2 = 1;
  */
 static void usb_hif_usb_transmit_complete(struct urb *urb)
 {
-	HIF_URB_CONTEXT *urb_context = (HIF_URB_CONTEXT *) urb->context;
+	struct HIF_URB_CONTEXT *urb_context =
+		(struct HIF_URB_CONTEXT *)urb->context;
 	qdf_nbuf_t buf;
-	HIF_USB_PIPE *pipe = urb_context->pipe;
+	struct HIF_USB_PIPE *pipe = urb_context->pipe;
 	struct hif_usb_send_context *send_context;
 
 	HIF_DBG("+%s: pipe: %d, stat:%d, len:%d", __func__,
@@ -102,7 +100,7 @@ static void usb_hif_usb_transmit_complete(struct urb *urb)
 
 	/* note: queue implements a lock */
 	skb_queue_tail(&pipe->io_comp_queue, buf);
-	HIF_USB_SCHEDULE_WORK(pipe)
+	HIF_USB_SCHEDULE_WORK(pipe);
 
 	HIF_DBG("-%s", __func__);
 }
@@ -117,15 +115,15 @@ static void usb_hif_usb_transmit_complete(struct urb *urb)
  *
  * Return: QDF_STATUS_SUCCESS on success and error QDF status on failure
  */
-static QDF_STATUS hif_send_internal(HIF_DEVICE_USB *hif_usb_device,
+static QDF_STATUS hif_send_internal(struct HIF_DEVICE_USB *hif_usb_device,
 				    uint8_t pipe_id,
 				    qdf_nbuf_t hdr_buf,
 				    qdf_nbuf_t buf, unsigned int nbytes)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	HIF_DEVICE_USB *device = hif_usb_device;
-	HIF_USB_PIPE *pipe = &device->pipes[pipe_id];
-	HIF_URB_CONTEXT *urb_context;
+	struct HIF_DEVICE_USB *device = hif_usb_device;
+	struct HIF_USB_PIPE *pipe = &device->pipes[pipe_id];
+	struct HIF_URB_CONTEXT *urb_context;
 	uint8_t *data;
 	uint32_t len;
 	struct urb *urb;
@@ -148,7 +146,7 @@ static QDF_STATUS hif_send_internal(HIF_DEVICE_USB *hif_usb_device,
 	} else if ((frag_count - 1) <= QDF_NBUF_CB_TX_MAX_EXTRA_FRAGS) {
 		/*
 		 * means have extra fragment buf in skb
-		 * header data length should be total sending length substract
+		 * header data length should be total sending length subtract
 		 * internal data length of netbuf
 		 * | hif_usb_send_context | fragments except internal buffer |
 		 * netbuf->data
@@ -177,8 +175,7 @@ static QDF_STATUS hif_send_internal(HIF_DEVICE_USB *hif_usb_device,
 		send_context =
 		    qdf_mem_malloc(sizeof(struct hif_usb_send_context)
 				   + head_data_len + nbytes);
-		if (send_context == NULL) {
-			HIF_ERROR("%s: qdf_mem_malloc failed", __func__);
+		if (!send_context) {
 			status = QDF_STATUS_E_NOMEM;
 			goto err;
 		}
@@ -209,7 +206,7 @@ static QDF_STATUS hif_send_internal(HIF_DEVICE_USB *hif_usb_device,
 				sizeof(struct hif_usb_send_context);
 
 	urb_context = usb_hif_alloc_urb_from_pipe(pipe);
-	if (NULL == urb_context) {
+	if (!urb_context) {
 		/* TODO : note, it is possible to run out of urbs if 2
 		 * endpoints map to the same pipe ID
 		 */
@@ -284,11 +281,9 @@ QDF_STATUS hif_send_head(struct hif_opaque_softc *scn, uint8_t pipe_id,
 				qdf_nbuf_t wbuf, uint32_t data_attr)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 
-	HIF_TRACE("+%s", __func__);
 	status = hif_send_internal(device, pipe_id, NULL, wbuf, nbytes);
-	HIF_TRACE("-%s", __func__);
 	return status;
 }
 
@@ -302,9 +297,15 @@ QDF_STATUS hif_send_head(struct hif_opaque_softc *scn, uint8_t pipe_id,
 uint16_t hif_get_free_queue_number(struct hif_opaque_softc *scn,
 				   uint8_t pipe_id)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_USB_PIPE *pipe = &device->pipes[pipe_id];
+	u16 urb_cnt;
 
-	return device->pipes[pipe_id].urb_cnt;
+	qdf_spin_lock_irqsave(&pipe->device->cs_lock);
+	urb_cnt =  pipe->urb_cnt;
+	qdf_spin_unlock_irqrestore(&pipe->device->cs_lock);
+
+	return urb_cnt;
 }
 
 /**
@@ -318,7 +319,7 @@ uint16_t hif_get_free_queue_number(struct hif_opaque_softc *scn,
 void hif_post_init(struct hif_opaque_softc *scn, void *target,
 		struct hif_msg_callbacks *callbacks)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 
 	qdf_mem_copy(&device->htc_callbacks, callbacks,
 			sizeof(device->htc_callbacks));
@@ -332,7 +333,7 @@ void hif_post_init(struct hif_opaque_softc *scn, void *target,
  */
 void hif_detach_htc(struct hif_opaque_softc *scn)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 
 	usb_hif_flush_all(device);
 	qdf_mem_zero(&device->htc_callbacks, sizeof(device->htc_callbacks));
@@ -346,18 +347,16 @@ void hif_detach_htc(struct hif_opaque_softc *scn)
  */
 void hif_usb_device_deinit(struct hif_usb_softc *sc)
 {
-	HIF_DEVICE_USB *device = &sc->hif_hdl;
+	struct HIF_DEVICE_USB *device = &sc->hif_hdl;
 
 	HIF_TRACE("+%s", __func__);
 
 	usb_hif_cleanup_pipe_resources(device);
 
-	usb_set_intfdata(device->interface, NULL);
-
-	if (device->diag_cmd_buffer != NULL)
+	if (device->diag_cmd_buffer)
 		qdf_mem_free(device->diag_cmd_buffer);
 
-	if (device->diag_resp_buffer != NULL)
+	if (device->diag_resp_buffer)
 		qdf_mem_free(device->diag_resp_buffer);
 
 	HIF_TRACE("-%s", __func__);
@@ -372,20 +371,20 @@ void hif_usb_device_deinit(struct hif_usb_softc *sc)
 QDF_STATUS hif_usb_device_init(struct hif_usb_softc *sc)
 {
 	int i;
-	HIF_DEVICE_USB *device = &sc->hif_hdl;
+	struct HIF_DEVICE_USB *device = &sc->hif_hdl;
 	struct usb_interface *interface = sc->interface;
 	struct usb_device *dev = interface_to_usbdev(interface);
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	HIF_USB_PIPE *pipe;
+	struct HIF_USB_PIPE *pipe;
 
 	HIF_TRACE("+%s", __func__);
 
 	do {
 
-		usb_set_intfdata(interface, device);
 		qdf_spinlock_create(&(device->cs_lock));
 		qdf_spinlock_create(&(device->rx_lock));
 		qdf_spinlock_create(&(device->tx_lock));
+		qdf_spinlock_create(&device->rx_prestart_lock);
 		device->udev = dev;
 		device->interface = interface;
 
@@ -404,13 +403,13 @@ QDF_STATUS hif_usb_device_init(struct hif_usb_softc *sc)
 
 		device->diag_cmd_buffer =
 			qdf_mem_malloc(USB_CTRL_MAX_DIAG_CMD_SIZE);
-		if (NULL == device->diag_cmd_buffer) {
+		if (!device->diag_cmd_buffer) {
 			status = QDF_STATUS_E_NOMEM;
 			break;
 		}
 		device->diag_resp_buffer =
 			qdf_mem_malloc(USB_CTRL_MAX_DIAG_RESP_SIZE);
-		if (NULL == device->diag_resp_buffer) {
+		if (!device->diag_resp_buffer) {
 			status = QDF_STATUS_E_NOMEM;
 			break;
 		}
@@ -418,6 +417,9 @@ QDF_STATUS hif_usb_device_init(struct hif_usb_softc *sc)
 		status = usb_hif_setup_pipe_resources(device);
 
 	} while (false);
+
+	if (hif_is_supported_rx_ctrl_pipe(HIF_GET_SOFTC(sc)))
+		device->rx_ctrl_pipe_supported = 1;
 
 	if (status != QDF_STATUS_SUCCESS)
 		HIF_ERROR("%s: abnormal condition", __func__);
@@ -434,7 +436,7 @@ QDF_STATUS hif_usb_device_init(struct hif_usb_softc *sc)
  */
 QDF_STATUS hif_start(struct hif_opaque_softc *scn)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 	int i;
 
 	HIF_TRACE("+%s", __func__);
@@ -458,7 +460,7 @@ QDF_STATUS hif_start(struct hif_opaque_softc *scn)
  */
 void hif_usb_stop_device(struct hif_softc *hif_sc)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(hif_sc);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(hif_sc);
 
 	HIF_TRACE("+%s", __func__);
 
@@ -554,12 +556,16 @@ int hif_map_service_to_pipe(struct hif_opaque_softc *scn, uint16_t svc_id,
 			    int *ul_is_polled, int *dl_is_polled)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 
 	switch (svc_id) {
 	case HTC_CTRL_RSVD_SVC:
 	case WMI_CONTROL_SVC:
 		*ul_pipe = HIF_TX_CTRL_PIPE;
-		*dl_pipe = HIF_RX_DATA_PIPE;
+		if (device->rx_ctrl_pipe_supported)
+			*dl_pipe = HIF_RX_CTRL_PIPE;
+		else
+			*dl_pipe = HIF_RX_DATA_PIPE;
 		break;
 	case WMI_DATA_BE_SVC:
 	case WMI_DATA_BK_SVC:
@@ -624,13 +630,13 @@ int hif_map_service_to_pipe(struct hif_opaque_softc *scn, uint16_t svc_id,
  *
  * Return: QDF_STATUS_SUCCESS if success else an appropriate QDF_STATUS error
  */
-static QDF_STATUS hif_ctrl_msg_exchange(HIF_DEVICE_USB *macp,
-				uint8_t send_req_val,
-				uint8_t *send_msg,
-				uint32_t len,
-				uint8_t response_req_val,
-				uint8_t *response_msg,
-				uint32_t *response_len)
+static QDF_STATUS hif_ctrl_msg_exchange(struct HIF_DEVICE_USB *macp,
+					uint8_t send_req_val,
+					uint8_t *send_msg,
+					uint32_t len,
+					uint8_t response_req_val,
+					uint8_t *response_msg,
+					uint32_t *response_len)
 {
 	QDF_STATUS status;
 
@@ -643,7 +649,7 @@ static QDF_STATUS hif_ctrl_msg_exchange(HIF_DEVICE_USB *macp,
 		if (!QDF_IS_STATUS_SUCCESS(status))
 			break;
 
-		if (NULL == response_msg) {
+		if (!response_msg) {
 			/* no expected response */
 			break;
 		}
@@ -660,6 +666,7 @@ static QDF_STATUS hif_ctrl_msg_exchange(HIF_DEVICE_USB *macp,
 	return status;
 }
 
+#ifdef WLAN_FEATURE_BMI
 /**
  * hif_exchange_bmi_msg() - send/recev ctrl message of type BMI_CMD/BMI_RESP
  * @scn: pointer to hif_opaque_softc
@@ -680,7 +687,7 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *scn,
 				uint32_t *bmi_response_lengthp,
 				uint32_t timeout_ms)
 {
-	HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
 
 	return hif_ctrl_msg_exchange(macp,
 				USB_CONTROL_REQ_SEND_BMI_CMD,
@@ -689,6 +696,11 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *scn,
 				USB_CONTROL_REQ_RECV_BMI_RESP,
 				bmi_response, bmi_response_lengthp);
 }
+
+void hif_register_bmi_callbacks(struct hif_opaque_softc *hif_ctx)
+{
+}
+#endif /* WLAN_FEATURE_BMI */
 
 /**
  * hif_diag_read_access() - Read data from target memory or register
@@ -701,7 +713,7 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *scn,
 QDF_STATUS hif_diag_read_access(struct hif_opaque_softc *scn, uint32_t address,
 					uint32_t *data)
 {
-	HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
 	QDF_STATUS status;
 	USB_CTRL_DIAG_CMD_READ *cmd;
 	uint32_t respLength;
@@ -744,7 +756,7 @@ QDF_STATUS hif_diag_write_access(struct hif_opaque_softc *scn,
 					uint32_t address,
 					uint32_t data)
 {
-	HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *macp = HIF_GET_USB_DEVICE(scn);
 	USB_CTRL_DIAG_CMD_WRITE *cmd;
 
 	cmd = (USB_CTRL_DIAG_CMD_WRITE *) macp->diag_cmd_buffer;
@@ -768,8 +780,8 @@ QDF_STATUS hif_diag_write_access(struct hif_opaque_softc *scn,
  */
 void hif_dump_info(struct hif_opaque_softc *scn)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
-	HIF_USB_PIPE *pipe = NULL;
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_USB_PIPE *pipe = NULL;
 	struct usb_host_interface *iface_desc = NULL;
 	struct usb_endpoint_descriptor *ep_desc;
 	uint8_t i = 0;
@@ -854,6 +866,7 @@ QDF_STATUS hif_diag_read_mem(struct hif_opaque_softc *scn,
 	HIF_TRACE("-%s", __func__);
 	return status;
 }
+qdf_export_symbol(hif_diag_read_mem);
 
 /**
  * hif_diag_write_mem() -write  nbytes of data to target memory or register
@@ -916,7 +929,7 @@ void hif_suspend_wow(struct hif_opaque_softc *scn)
 void hif_usb_set_bundle_mode(struct hif_softc *scn,
 					bool enabled, int rx_bundle_cnt)
 {
-	HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
+	struct HIF_DEVICE_USB *device = HIF_GET_USB_DEVICE(scn);
 
 	device->is_bundle_enabled = enabled;
 	device->rx_bundle_cnt = rx_bundle_cnt;
@@ -928,4 +941,24 @@ void hif_usb_set_bundle_mode(struct hif_softc *scn,
 
 	HIF_DBG("athusb bundle %s cnt %d", enabled ? "enabled" : "disabled",
 			rx_bundle_cnt);
+}
+
+/**
+ * hif_is_supported_rx_ctrl_pipe() - return true if device supports exclusive
+ * control pipe in the RX direction.
+ * @scn: hif context
+ *
+ * Return: true if device supports RX control pipe.
+ */
+bool hif_is_supported_rx_ctrl_pipe(struct hif_softc *scn)
+{
+	struct hif_opaque_softc *hif_hdl = GET_HIF_OPAQUE_HDL(scn);
+	struct hif_target_info *tgt_info = hif_get_target_info_handle(hif_hdl);
+
+	switch (tgt_info->target_type) {
+	case TARGET_TYPE_QCN7605:
+		return true;
+	default:
+		return false;
+	}
 }

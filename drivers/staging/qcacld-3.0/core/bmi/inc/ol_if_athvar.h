@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,53 +17,12 @@
  */
 
 /*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
-/*
- * Defintions for the Atheros Wireless LAN controller driver.
+ * Definitions for the Atheros Wireless LAN controller driver.
  */
 #ifndef _DEV_OL_ATH_ATHVAR_H
 #define _DEV_OL_ATH_ATHVAR_H
 
-#include <osapi_linux.h>
-#include "qdf_types.h"
-#include "qdf_lock.h"
-#include "wmi_unified_api.h"
 #include "htc_api.h"
 #include "bmi_msg.h"
-#include "ol_params.h"
-#include <wdi_event_api.h>
-
-#include "ol_ctrl_addba_api.h"
-
-struct ol_version {
-	uint32_t host_ver;
-	uint32_t target_ver;
-	uint32_t wlan_ver;
-	uint32_t wlan_ver_1;
-	uint32_t abi_ver;
-};
-
-enum ol_ath_tx_ecodes {
-	TX_IN_PKT_INCR = 0,
-	TX_OUT_HDR_COMPL,
-	TX_OUT_PKT_COMPL,
-	PKT_ENCAP_FAIL,
-	TX_PKT_BAD,
-	RX_RCV_MSG_RX_IND,
-	RX_RCV_MSG_PEER_MAP,
-	RX_RCV_MSG_TYPE_TEST
-};
-
-/*
- * structure to hold the packet error count for CE and hif layer
- */
-struct ol_ath_stats {
-	int hif_pipe_no_resrc_count;
-	int ce_ring_delta_fail_count;
-};
 
 #endif /* _DEV_OL_ATH_ATHVAR_H  */

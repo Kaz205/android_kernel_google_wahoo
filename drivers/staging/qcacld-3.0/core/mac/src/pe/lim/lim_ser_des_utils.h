@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2015, 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -46,9 +37,6 @@
 #include "lim_types.h"
 #include "lim_prop_exts_utils.h"
 
-void lim_get_session_info(tpAniSirGlobal pMac, uint8_t *,
-			  uint8_t *, uint16_t *);
-
 /* Byte String <--> uint16_t/uint32_t copy functions */
 static inline void lim_copy_u16(uint8_t *ptr, uint16_t u16Val)
 {
@@ -57,7 +45,7 @@ static inline void lim_copy_u16(uint8_t *ptr, uint16_t u16Val)
 	*ptr++ = (uint8_t) (u16Val & 0xff);
 	*ptr = (uint8_t) ((u16Val >> 8) & 0xff);
 #else
-#error "Unknown combination of OS Type and endianess"
+#error "Unknown combination of OS Type and endianness"
 #endif
 }
 
@@ -67,7 +55,7 @@ static inline uint16_t lim_get_u16(uint8_t *ptr)
 	(defined(ANI_OS_TYPE_ANDROID) && defined(ANI_LITTLE_BYTE_ENDIAN)))
 	return ((uint16_t) (*(ptr + 1) << 8)) | ((uint16_t) (*ptr));
 #else
-#error "Unknown combination of OS Type and endianess"
+#error "Unknown combination of OS Type and endianness"
 #endif
 }
 
@@ -80,7 +68,7 @@ static inline void lim_copy_u32(uint8_t *ptr, uint32_t u32Val)
 	*ptr++ = (uint8_t) ((u32Val >> 16) & 0xff);
 	*ptr = (uint8_t) ((u32Val >> 24) & 0xff);
 #else
-#error "Unknown combination of OS Type and endianess"
+#error "Unknown combination of OS Type and endianness"
 #endif
 }
 
@@ -91,7 +79,7 @@ static inline uint32_t lim_get_u32(uint8_t *ptr)
 	return ((*(ptr + 3) << 24) |
 		(*(ptr + 2) << 16) | (*(ptr + 1) << 8) | (*(ptr)));
 #else
-#error "Unknown combination of OS Type and endianess"
+#error "Unknown combination of OS Type and endianness"
 #endif
 }
 
@@ -119,9 +107,4 @@ static inline uint16_t lim_get_u16_be(uint8_t *buf)
 {
 	return (buf[0] << 8) | buf[1];
 }
-
-tSirRetStatus lim_send_disassoc_frm_req_ser_des(tpAniSirGlobal mac_ctx,
-		struct sme_send_disassoc_frm_req *disassoc_frm_req,
-		uint8_t *buf);
-
 #endif /* __LIM_SERDES_UTILS_H */

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2015, 2017-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -45,12 +36,12 @@
 				 SIR_MAC_WEP_ICV_LENGTH)
 
 #define LIM_ENCR_AUTH_BODY_LEN_SAP  (SIR_MAC_AUTH_FRAME_INFO_LEN + \
-				     SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH + \
-				     SIR_MAC_CHALLENGE_ID_LEN + \
-				     SIR_MAC_WEP_IV_LENGTH + \
-				     SIR_MAC_WEP_ICV_LENGTH)
+					 SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH + \
+					 SIR_MAC_CHALLENGE_ID_LEN + \
+					 SIR_MAC_WEP_IV_LENGTH + \
+					 SIR_MAC_WEP_ICV_LENGTH)
 
-#define LIM_ENCR_AUTH_INFO_LEN  (SIR_MAC_AUTH_FRAME_INFO_LEN +\
+#define LIM_ENCR_AUTH_INFO_LEN	(SIR_MAC_AUTH_FRAME_INFO_LEN +\
 				 SIR_MAC_WEP_IV_LENGTH + \
 				 SIR_MAC_WEP_ICV_LENGTH + \
 				 SIR_MAC_CHALLENGE_ID_LEN)
@@ -58,31 +49,31 @@
 
 struct tLimPreAuthNode;
 
-uint8_t lim_is_auth_algo_supported(tpAniSirGlobal, tAniAuthType, tpPESession);
+uint8_t lim_is_auth_algo_supported(struct mac_context *, tAniAuthType,
+				   struct pe_session *);
 
 /* MAC based authentication related functions */
-void lim_init_pre_auth_list(tpAniSirGlobal);
-void lim_delete_pre_auth_list(tpAniSirGlobal);
-struct tLimPreAuthNode *lim_search_pre_auth_list(tpAniSirGlobal, tSirMacAddr);
-void lim_add_pre_auth_node(tpAniSirGlobal, struct tLimPreAuthNode *);
-void lim_delete_pre_auth_node(tpAniSirGlobal, tSirMacAddr);
-void lim_release_pre_auth_node(tpAniSirGlobal pMac, tpLimPreAuthNode pAuthNode);
-void lim_restore_from_auth_state(tpAniSirGlobal,
-				 tSirResultCodes, uint16_t, tpPESession);
-uint8_t lim_delete_open_auth_pre_auth_node(tpAniSirGlobal mac_ctx);
+void lim_init_pre_auth_list(struct mac_context *);
+void lim_delete_pre_auth_list(struct mac_context *);
+struct tLimPreAuthNode *lim_search_pre_auth_list(struct mac_context *,
+						 tSirMacAddr);
+void lim_add_pre_auth_node(struct mac_context *, struct tLimPreAuthNode *);
+void lim_delete_pre_auth_node(struct mac_context *, tSirMacAddr);
+void lim_release_pre_auth_node(struct mac_context *mac,
+			       tpLimPreAuthNode pAuthNode);
+void lim_restore_from_auth_state(struct mac_context *,
+				tSirResultCodes, uint16_t, struct pe_session *);
+uint8_t lim_delete_open_auth_pre_auth_node(struct mac_context *mac_ctx);
 
 /* Encryption/Decryption related functions */
 void lim_compute_crc32(uint8_t *, uint8_t *, uint16_t);
 void lim_rc4(uint8_t *, uint8_t *, uint8_t *, uint32_t, uint16_t);
-void lim_encrypt_auth_frame(tpAniSirGlobal, uint8_t, uint8_t *, uint8_t *,
+void lim_encrypt_auth_frame(struct mac_context *, uint8_t, uint8_t *, uint8_t *,
 			    uint8_t *, uint32_t);
-uint8_t lim_decrypt_auth_frame(tpAniSirGlobal, uint8_t *, uint8_t *, uint8_t *,
-			       uint32_t, uint16_t);
+uint8_t lim_decrypt_auth_frame(struct mac_context *, uint8_t *, uint8_t *,
+			       uint8_t *, uint32_t, uint16_t);
 
-void lim_send_set_bss_key_req(tpAniSirGlobal, tLimMlmSetKeysReq *, tpPESession);
-void lim_send_set_sta_key_req(tpAniSirGlobal, tLimMlmSetKeysReq *, uint16_t, uint8_t,
-			      tpPESession, bool sendRsp);
-void lim_post_sme_set_keys_cnf(tpAniSirGlobal, tLimMlmSetKeysReq *,
+void lim_post_sme_set_keys_cnf(struct mac_context *, tLimMlmSetKeysReq *,
 			       tLimMlmSetKeysCnf *);
 
 #define  PTAPS  0xedb88320

@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef _AR9888DEF_H_
@@ -212,6 +203,7 @@
 #define AR9888_CPU_INTR_ADDRESS                         0x0010
 #define AR9888_SOC_LF_TIMER_CONTROL0_ADDRESS            0x00000050
 #define AR9888_SOC_LF_TIMER_CONTROL0_ENABLE_MASK        0x00000004
+#define AR9888_SOC_LF_TIMER_STATUS0_ADDRESS             0x00000054
 #define AR9888_SOC_RESET_CONTROL_ADDRESS                0x00000000
 #define AR9888_SOC_RESET_CONTROL_CPU_WARM_RST_MASK      0x00000040
 #define AR9888_CORE_CTRL_ADDRESS                        0x0000
@@ -447,6 +439,8 @@ struct targetdef_s ar9888_targetdef = {
 		AR9888_SOC_LF_TIMER_CONTROL0_ADDRESS,
 	.d_SOC_LF_TIMER_CONTROL0_ENABLE_MASK =
 		AR9888_SOC_LF_TIMER_CONTROL0_ENABLE_MASK,
+	.d_SOC_LF_TIMER_STATUS0_ADDRESS =
+		AR9888_SOC_LF_TIMER_STATUS0_ADDRESS,
 };
 
 struct hostdef_s ar9888_hostdef = {

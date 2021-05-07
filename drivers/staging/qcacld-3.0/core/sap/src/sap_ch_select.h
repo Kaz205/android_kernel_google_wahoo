@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2015, 2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2015, 2017-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #if !defined(__SAP_CH_SELECT_H)
@@ -68,11 +59,6 @@
 #define SOFTAP_MIN_TXPWR        (0)
 #define SOFTAP_MAX_TXPWR        (63)
 
-
-#define SAP_DEFAULT_24GHZ_CHANNEL     (6)
-#define SAP_DEFAULT_5GHZ_CHANNEL      (40)
-#define SAP_CHANNEL_NOT_SELECTED (0)
-
 #define SOFTAP_HT20_CHANNELWIDTH 0
 /* In HT40/VHT80, Effect of primary Channel RSSi on Subband1 */
 #define SAP_SUBBAND1_RSSI_EFFECT_PRIMARY  (-20)
@@ -116,48 +102,14 @@ typedef enum {
 #define SAP_40MHZ_MASK_L   0x03
 #define SAP_40MHZ_MASK_H   0x0C
 
-/*
- * structs for holding channel bonding bitmap
- * used for finding new channel when SAP is on
- * DFS channel and radar is detected.
- */
-typedef struct sChannelBondingInfo {
-	uint8_t channelMap:4;
-	uint8_t rsvd:4;
-	uint8_t startChannel;
-} tChannelBondingInfo;
-
-typedef struct __chan_bonding_bitmap {
-	tChannelBondingInfo chanBondingSet[MAX_80MHZ_BANDS];
-} chan_bonding_bitmap;
-
-/**
- * Structure holding information of each channel in the spectrum,
- * it contains the channel number, the computed weight
- */
-typedef struct sChannelInfo {
-	uint8_t channel;
-	bool valid;             /* if the channel is valid to be picked as new channel */
-} tChannelInfo;
-
-typedef struct sAll5GChannelList {
-	uint8_t numChannel;
-	tChannelInfo *channelList;
-} tAll5GChannelList;
-
-typedef struct sSapChannelListInfo {
-	uint8_t numChannel;
-	uint8_t *channelList;
-} tSapChannelListInfo;
-
 typedef struct {
-	uint16_t chNum;         /* Channel Number */
-	uint16_t channelWidth;  /* Channel Width */
+	uint32_t chan_freq;
 	uint16_t bssCount;      /* bss found in scanresult for this channel */
 	int32_t rssiAgr;        /* Max value of rssi among all BSS(es) from scanresult for this channel */
 	uint32_t weight;        /* Weightage of this channel */
 	uint32_t weight_copy;   /* copy of the orignal weight */
 	bool valid;             /* Is this a valid center frequency for regulatory domain */
+	bool weight_calc_done;
 } tSapSpectChInfo;              /* tDfsSpectChInfo; */
 
 /**
@@ -169,36 +121,5 @@ typedef struct {
 	tSapSpectChInfo *pSpectCh;      /* tDfsSpectChInfo *pSpectCh;  // Ptr to the channels in the entire spectrum band */
 	uint8_t numSpectChans;  /* Total num of channels in the spectrum */
 } tSapChSelSpectInfo;           /* tDfsChSelParams; */
-
-/**
- * Structure for channel weight calculation parameters
- */
-typedef struct sSapChSelParams {
-	void *pSpectInfoParams; /**pDfsParams;   // Filled with tSapChSelSpectInfo */
-	uint16_t numChannels;
-} tSapChSelParams;
-
-#define SAP_TX_LEAKAGE_THRES 310
-#define SAP_TX_LEAKAGE_MAX  1000
-#define SAP_TX_LEAKAGE_MIN  200
-
-/*
- * This define is used to block additional channels
- * based on the new data gathered on auto platforms
- * and to differentiate the leakage data among different
- * platforms.
- */
-
-#define SAP_TX_LEAKAGE_AUTO_MIN  210
-
-typedef struct sSapTxLeakInfo {
-	uint8_t leak_chan;      /* leak channel */
-	uint32_t leak_lvl;      /* tx leakage lvl */
-} tSapTxLeakInfo;
-
-typedef struct sSapChanMatrixInfo {
-	uint8_t channel;        /* channel to switch from */
-	tSapTxLeakInfo chan_matrix[CHAN_ENUM_144 - CHAN_ENUM_36 + 1];
-} tSapChanMatrixInfo;
 
 #endif /* if !defined __SAP_CH_SELECT_H */

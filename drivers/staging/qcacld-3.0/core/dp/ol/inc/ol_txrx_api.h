@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2014,2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2014,2016-2017,2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -59,12 +50,6 @@ enum ol_sec_type {
 	/* keep this last! */
 	ol_sec_type_types
 };
-
-typedef void (*tp_ol_packetdump_cb)(qdf_nbuf_t netbuf,
-		uint8_t status, uint8_t vdev_id, uint8_t type);
-void ol_register_packetdump_callback(tp_ol_packetdump_cb ol_tx_packetdump_cb,
-			tp_ol_packetdump_cb ol_rx_packetdump_cb);
-void ol_deregister_packetdump_callback(void);
 
 #ifdef WLAN_FEATURE_TSF_PLUS
 typedef int (*tp_ol_timestamp_cb)(qdf_nbuf_t netbuf, uint64_t target_time);

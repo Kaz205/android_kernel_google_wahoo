@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,39 +16,20 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef _WDI_EVENT_H_
 #define _WDI_EVENT_H_
 
 #include "athdefs.h"
 #include "qdf_nbuf.h"
-#define WDI_EVENT_BASE 0x100    /* Event starting number */
+#include <cdp_txrx_stats_struct.h>
 
-enum WDI_EVENT {
-	WDI_EVENT_TX_STATUS = WDI_EVENT_BASE,
-	WDI_EVENT_RX_DESC,
-	WDI_EVENT_RX_DESC_REMOTE,
-	WDI_EVENT_RATE_FIND,
-	WDI_EVENT_RATE_UPDATE,
-	WDI_EVENT_SW_EVENT,
-	WDI_EVENT_RX_PEER_INVALID,
-	/* End of new event items */
-
-	WDI_EVENT_LAST
-};
+#define WDI_NO_VAL (-1)
 
 struct wdi_event_rx_peer_invalid_msg {
 	qdf_nbuf_t msdu;
 	struct ieee80211_frame *wh;
 	uint8_t vdev_id;
 };
-
-#define WDI_NUM_EVENTS  (WDI_EVENT_LAST - WDI_EVENT_BASE)
 
 #define WDI_EVENT_NOTIFY_BASE   0x200
 enum WDI_EVENT_NOTIFY {
@@ -62,7 +40,8 @@ enum WDI_EVENT_NOTIFY {
 };
 
 /* Opaque event callback */
-typedef void (*wdi_event_cb)(void *pdev, enum WDI_EVENT event, void *data);
+typedef void (*wdi_event_cb)(void *pdev, enum WDI_EVENT event, void *data,
+					u_int16_t peer_id, uint32_t status);
 
 /* Opaque event notify */
 typedef void (*wdi_event_notify)(enum WDI_EVENT_NOTIFY notify,

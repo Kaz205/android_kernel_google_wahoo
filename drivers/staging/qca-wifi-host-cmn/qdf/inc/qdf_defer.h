@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -51,7 +42,6 @@
  * Representation of a work queue.
  */
 typedef __qdf_work_t     qdf_work_t;
-typedef __qdf_delayed_work_t qdf_delayed_work_t;
 typedef __qdf_workqueue_t     qdf_workqueue_t;
 
 /*
@@ -92,16 +82,6 @@ static inline void qdf_destroy_bh(qdf_bh_t *bh)
 	__qdf_disable_bh(bh);
 }
 
-/**
- * qdf_tasklet_is_scheduled - check bh status
- * @bh: pointer to bottom
- * Return: tasklet schedule state
- */
-static inline bool qdf_tasklet_is_scheduled(struct tasklet_struct *bh)
-{
-	return __qdf_tasklet_is_scheduled(bh);
-}
-
 /*********************Non-Interrupt Context deferred Execution***************/
 
 /**
@@ -112,27 +92,12 @@ static inline bool qdf_tasklet_is_scheduled(struct tasklet_struct *bh)
  * @func: deferred function to run at bottom half non-interrupt context.
  * @arg: argument for the deferred function
  *
- * Return: QDF_STATUS
+ * Return: QDF status
  */
 static inline QDF_STATUS qdf_create_work(qdf_handle_t hdl, qdf_work_t  *work,
 				   qdf_defer_fn_t  func, void  *arg)
 {
 	return __qdf_init_work(work, func, arg);
-}
-
-/**
- * qdf_create_delayed_work - create a delayed work/task, This runs in
- * non-interrupt context, so can be preempted by H/W & S/W intr
- * @work: pointer to work
- * @func: deferred function to run at bottom half non-interrupt context.
- * @arg: argument for the deferred function
- * Return: none
- */
-static inline void qdf_create_delayed_work(qdf_delayed_work_t *work,
-					   qdf_defer_fn_t func,
-					   void *arg)
-{
-	__qdf_init_delayed_work(work, func, arg);
 }
 
 /**
@@ -150,11 +115,38 @@ static inline qdf_workqueue_t *qdf_create_workqueue(char *name)
  * qdf_create_singlethread_workqueue() - create a single threaded workqueue
  * @name: string
  *
+ * This API creates a dedicated work queue with a single worker thread to avoid
+ * wasting unnecessary resources when works which needs to be submitted in this
+ * queue are not very critical and frequent.
+ *
  * Return: pointer of type qdf_workqueue_t
  */
 static inline qdf_workqueue_t *qdf_create_singlethread_workqueue(char *name)
 {
 	return  __qdf_create_singlethread_workqueue(name);
+}
+
+/**
+ * qdf_alloc_high_prior_ordered_workqueue - alloc high-prior ordered workqueue
+ * @name: string
+ *
+ * Return: pointer of type qdf_workqueue_t
+ */
+static inline
+qdf_workqueue_t *qdf_alloc_high_prior_ordered_workqueue(char *name)
+{
+	return __qdf_alloc_high_prior_ordered_workqueue(name);
+}
+
+/**
+ * qdf_alloc_unbound_workqueue - allocate an unbound workqueue
+ * @name: string
+ *
+ * Return: pointer of type qdf_workqueue_t
+ */
+static inline qdf_workqueue_t *qdf_alloc_unbound_workqueue(char *name)
+{
+	return  __qdf_alloc_unbound_workqueue(name);
 }
 
 /**
@@ -168,20 +160,6 @@ static inline void
 qdf_queue_work(qdf_handle_t hdl, qdf_workqueue_t *wqueue, qdf_work_t *work)
 {
 	return  __qdf_queue_work(wqueue, work);
-}
-
-/**
- * qdf_queue_delayed_work - Queue the delayed work/task
- * @wqueue: pointer to workqueue
- * @work: pointer to work
- * @delay: delay interval in milliseconds
- * Return: none
- */
-static inline void qdf_queue_delayed_work(qdf_workqueue_t *wqueue,
-					  qdf_delayed_work_t *work,
-					  uint32_t delay)
-{
-	return  __qdf_queue_delayed_work(wqueue, work, delay);
 }
 
 /**
@@ -220,18 +198,6 @@ static inline void qdf_sched_work(qdf_handle_t hdl, qdf_work_t *work)
 }
 
 /**
- * qdf_sched_delayed_work() - Schedule a delayed task
- * @work: pointer to delayed work
- * @delay: delay interval in milliseconds
- * Return: none
- */
-static inline void
-qdf_sched_delayed_work(qdf_delayed_work_t *work, uint32_t delay)
-{
-	__qdf_sched_delayed_work(work, delay);
-}
-
-/**
  * qdf_cancel_work() - Cancel a work
  * @work: pointer to work
  *
@@ -251,19 +217,6 @@ static inline bool qdf_cancel_work(qdf_work_t *work)
 }
 
 /**
- * qdf_cancel_delayed_work() - Cancel a delayed work
- * @work: pointer to delayed work
- *
- * This is qdf_cancel_work for delayed works.
- *
- * Return: true if work was pending, false otherwise
- */
-static inline bool qdf_cancel_delayed_work(qdf_delayed_work_t *work)
-{
-	return __qdf_cancel_delayed_work(work);
-}
-
-/**
  * qdf_flush_work - Flush a deferred task on non-interrupt context
  * @work: pointer to work
  *
@@ -275,19 +228,6 @@ static inline bool qdf_cancel_delayed_work(qdf_delayed_work_t *work)
 static inline void qdf_flush_work(qdf_work_t *work)
 {
 	__qdf_flush_work(work);
-}
-
-/**
- * qdf_flush_delayed_work() - Flush a delayed work
- * @work: pointer to delayed work
- *
- * This is qdf_flush_work for delayed works.
- *
- * Return: none
- */
-static inline void qdf_flush_delayed_work(qdf_delayed_work_t *work)
-{
-	__qdf_flush_delayed_work(work);
 }
 
 /**

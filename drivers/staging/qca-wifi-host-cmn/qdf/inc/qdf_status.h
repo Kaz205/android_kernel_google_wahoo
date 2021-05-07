@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,19 +16,13 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 /**
  * DOC: qdf_status
  * QCA driver framework (QDF) status codes
  * Basic status codes/definitions used by QDF
  */
 
-#if !defined(__QDF_STATUS_H)
+#ifndef __QDF_STATUS_H
 #define __QDF_STATUS_H
 
 /**
@@ -79,6 +70,15 @@
  * @QDF_STATUS_CMD_NOT_QUEUED: command not queued
  * @QDF_STATUS_FW_MSG_TIMEDOUT: target message timeout
  * @QDF_STATUS_E_USB_ERROR: USB transaction error
+ * @QDF_STATUS_MAXCOMP_FAIL: Component id is more than MAX UMAC components
+ * @QDF_STATUS_COMP_DISABLED: UMAC Component is disabled
+ * @QDF_STATUS_COMP_ASYNC: UMAC component runs in asynchronous communication
+ * @QDF_STATUS_CRYPTO_PN_ERROR: PN ERROR in received frame
+ * @QDF_STATUS_CRYPTO_MIC_FAILURE: MIC failure in received frame
+ * @QDF_STATUS_CRYPTO_ENCRYPT_FAILED: encryption failed
+ * @QDF_STATUS_CRYPTO_DECRYPT_FAILED: decryption failed
+ * @QDF_STATUS_E_RANGE: result/parameter/operation was out of range
+ * @QDF_STATUS_E_GRO_DROP: return code for GRO drop
  * @QDF_STATUS_MAX: not a realy value just a place holder for max
  */
 typedef enum {
@@ -125,10 +125,37 @@ typedef enum {
 	QDF_STATUS_CMD_NOT_QUEUED,
 	QDF_STATUS_FW_MSG_TIMEDOUT,
 	QDF_STATUS_E_USB_ERROR,
+	QDF_STATUS_MAXCOMP_FAIL,
+	QDF_STATUS_COMP_DISABLED,
+	QDF_STATUS_COMP_ASYNC,
+	QDF_STATUS_CRYPTO_PN_ERROR,
+	QDF_STATUS_CRYPTO_MIC_FAILURE,
+	QDF_STATUS_CRYPTO_ENCRYPT_FAILED,
+	QDF_STATUS_CRYPTO_DECRYPT_FAILED,
+	QDF_STATUS_E_DEFRAG_ERROR,
+	QDF_STATUS_E_RANGE,
+	QDF_STATUS_E_GRO_DROP,
 	QDF_STATUS_MAX
 } QDF_STATUS;
 
 #define QDF_IS_STATUS_SUCCESS(status) (QDF_STATUS_SUCCESS == (status))
 #define QDF_IS_STATUS_ERROR(status) (QDF_STATUS_SUCCESS != (status))
 
-#endif /* if !defined __QDF_STATUS_H */
+/**
+ * qdf_status_to_os_return() - map a QDF_STATUS into an OS specific return code
+ * @status: QDF_STATUS to map
+ *
+ * Return: an OS specific error code
+ */
+int qdf_status_to_os_return(QDF_STATUS status);
+
+/**
+ * qdf_status_from_os_return() - map an OS specific return code to a QDF_STATUS
+ * @rc: the input return code to map
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS qdf_status_from_os_return(int rc);
+
+#endif /* __QDF_STATUS_H */
+

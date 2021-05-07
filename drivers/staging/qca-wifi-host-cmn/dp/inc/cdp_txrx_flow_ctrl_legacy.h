@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 /**
  * @file cdp_txrx_flow_ctrl_legacy.h
  * @brief Define the host data path legacy flow control API
@@ -31,128 +23,299 @@
  */
 #ifndef _CDP_TXRX_FC_LEG_H_
 #define _CDP_TXRX_FC_LEG_H_
+#include <cdp_txrx_mob_def.h>
+#include "cdp_txrx_handle.h"
+
+#ifdef QCA_HL_NETDEV_FLOW_CONTROL
 
 /**
- * enum netif_action_type - Type of actions on netif queues
- * @WLAN_STOP_ALL_NETIF_QUEUE: stop all netif queues
- * @WLAN_START_ALL_NETIF_QUEUE: start all netif queues
- * @WLAN_WAKE_ALL_NETIF_QUEUE: wake all netif queues
- * @WLAN_STOP_ALL_NETIF_QUEUE_N_CARRIER: stop all queues and off carrier
- * @WLAN_START_ALL_NETIF_QUEUE_N_CARRIER: start all queues and on carrier
- * @WLAN_NETIF_TX_DISABLE: disable tx
- * @WLAN_NETIF_TX_DISABLE_N_CARRIER: disable tx and off carrier
- * @WLAN_NETIF_CARRIER_ON: on carrier
- * @WLAN_NETIF_CARRIER_OFF: off carrier
+ * cdp_hl_fc_register() - Register HL flow control callback.
+ * @soc: data path soc handle
+ * @pdev_id: datapath pdev identifier
+ * @flowcontrol: callback function pointer to stop/start OS netdev queues
+ *
+ * Register flow control callback.
+ *
+ * Returns: 0 for success
  */
-enum netif_action_type {
-	WLAN_STOP_ALL_NETIF_QUEUE = 1,
-	WLAN_START_ALL_NETIF_QUEUE,
-	WLAN_WAKE_ALL_NETIF_QUEUE,
-	WLAN_STOP_ALL_NETIF_QUEUE_N_CARRIER,
-	WLAN_START_ALL_NETIF_QUEUE_N_CARRIER,
-	WLAN_NETIF_TX_DISABLE,
-	WLAN_NETIF_TX_DISABLE_N_CARRIER,
-	WLAN_NETIF_CARRIER_ON,
-	WLAN_NETIF_CARRIER_OFF,
-	WLAN_NETIF_PRIORITY_QUEUE_ON,
-	WLAN_NETIF_PRIORITY_QUEUE_OFF,
-	WLAN_NETIF_ACTION_TYPE_MAX,
-};
+static inline int
+cdp_hl_fc_register(ol_txrx_soc_handle soc, uint8_t pdev_id,
+		   tx_pause_callback flowcontrol)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			  "%s invalid instance", __func__);
+		QDF_BUG(0);
+		return -EINVAL;
+	}
 
-/**
- * enum netif_reason_type - reason for netif queue action
- * @WLAN_CONTROL_PATH: action from control path
- * @WLAN_DATA_FLOW_CONTROL: because of flow control
- * @WLAN_FW_PAUSE: because of firmware pause
- * @WLAN_TX_ABORT: because of tx abort
- * @WLAN_VDEV_STOP: because of vdev stop
- * @WLAN_PEER_UNAUTHORISED: because of peer is unauthorised
- * @WLAN_THERMAL_MITIGATION: because of thermal mitigation
- */
-enum netif_reason_type {
-	WLAN_CONTROL_PATH = 1,
-	WLAN_DATA_FLOW_CONTROL,
-	WLAN_FW_PAUSE,
-	WLAN_TX_ABORT,
-	WLAN_VDEV_STOP,
-	WLAN_PEER_UNAUTHORISED,
-	WLAN_THERMAL_MITIGATION,
-	WLAN_DATA_FLOW_CONTROL_PRIORITY,
-	WLAN_REASON_TYPE_MAX,
-};
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->register_tx_flow_control)
+		return -EINVAL;
+
+	return soc->ops->l_flowctl_ops->register_tx_flow_control(soc, pdev_id,
+								 flowcontrol);
+}
+
+static inline int cdp_hl_fc_set_td_limit(ol_txrx_soc_handle soc,
+					 uint8_t vdev_id, uint32_t chan_freq)
+{
+	if (!soc->ops->l_flowctl_ops->set_vdev_tx_desc_limit)
+		return 0;
+
+	return soc->ops->l_flowctl_ops->set_vdev_tx_desc_limit(soc, vdev_id,
+							       chan_freq);
+}
+
+static inline int cdp_hl_fc_set_os_queue_status(ol_txrx_soc_handle soc,
+						uint8_t vdev_id,
+					    enum netif_action_type action)
+{
+	if (!soc->ops->l_flowctl_ops->set_vdev_os_queue_status)
+		return -EINVAL;
+
+	return soc->ops->l_flowctl_ops->set_vdev_os_queue_status(soc,
+								 vdev_id,
+								 action);
+}
+#else
+static inline int
+cdp_hl_fc_register(ol_txrx_soc_handle soc, uint8_t pdev_id,
+		   tx_pause_callback flowcontrol)
+{
+	return 0;
+}
+
+static inline int cdp_hl_fc_set_td_limit(ol_txrx_soc_handle soc,
+					 uint8_t vdev_id, uint32_t chan_freq)
+{
+	return 0;
+}
+
+static inline int cdp_hl_fc_set_os_queue_status(ol_txrx_soc_handle soc,
+						uint8_t vdev_id,
+						enum netif_action_type action)
+{
+	return 0;
+}
+
+#endif /* QCA_HL_NETDEV_FLOW_CONTROL */
 
 #ifdef QCA_LL_LEGACY_TX_FLOW_CONTROL
-
 /**
- * ol_txrx_tx_flow_control_is_pause_fp - is tx paused by flow control
- * function from txrx to OS shim
- * @osif_dev - the virtual device's OS shim object
- *
- * Return: true if tx is paused by flow control
- */
-typedef bool (*ol_txrx_tx_flow_control_is_pause_fp)(void *osif_dev);
-/**
- * ol_txrx_tx_flow_control_fp - tx flow control notification
- * function from txrx to OS shim
- * @osif_dev - the virtual device's OS shim object
- * @tx_resume - tx os q should be resumed or not
- */
-typedef void (*ol_txrx_tx_flow_control_fp)(void *osif_dev,
-			 bool tx_resume);
-
-/**
- * ol_txrx_register_tx_flow_control() - register tx flow control callback
- * @vdev_id: vdev_id
- * @flowControl: flow control callback
- * @osif_fc_ctx: callback context
+ * cdp_fc_register() - Register flow control callback function pointer
+ * @soc - data path soc handle
+ * @vdev_id - virtual interface id to register flow control
+ * @flowControl - callback function pointer
+ * @osif_fc_ctx - client context pointer
  * @flow_control_is_pause: is vdev paused by flow control
  *
- * Return: 0 for sucess or error code
+ * Register flow control callback function pointer and client context pointer
+ *
+ * return 0 success
  */
-int ol_txrx_register_tx_flow_control(uint8_t vdev_id,
-		 ol_txrx_tx_flow_control_fp flowControl,
-		 void *osif_fc_ctx,
-		 ol_txrx_tx_flow_control_is_pause_fp flow_control_is_pause);
+static inline int
+cdp_fc_register(ol_txrx_soc_handle soc, uint8_t vdev_id,
+		ol_txrx_tx_flow_control_fp flowcontrol, void *osif_fc_ctx,
+		ol_txrx_tx_flow_control_is_pause_fp flow_control_is_pause)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return 0;
+	}
 
-int ol_txrx_deregister_tx_flow_control_cb(uint8_t vdev_id);
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->register_tx_flow_control)
+		return 0;
 
-void ol_txrx_flow_control_cb(ol_txrx_vdev_handle vdev,
-			 bool tx_resume);
+	return soc->ops->l_flowctl_ops->register_tx_flow_control(
+			soc, vdev_id, flowcontrol, osif_fc_ctx,
+			flow_control_is_pause);
+}
+#else
+static inline int
+cdp_fc_register(ol_txrx_soc_handle soc, uint8_t vdev_id,
+		ol_txrx_tx_flow_control_fp flowcontrol, void *osif_fc_ctx,
+		ol_txrx_tx_flow_control_is_pause_fp flow_control_is_pause)
+{
+	return 0;
+}
+#endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
+/**
+ * cdp_fc_deregister() - remove flow control instance
+ * @soc - data path soc handle
+ * @vdev_id - virtual interface id to register flow control
+ *
+ * remove flow control instance
+ *
+ * return 0 success
+ */
+static inline int
+cdp_fc_deregister(ol_txrx_soc_handle soc, uint8_t vdev_id)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return 0;
+	}
+
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->deregister_tx_flow_control_cb)
+		return 0;
+
+	return soc->ops->l_flowctl_ops->deregister_tx_flow_control_cb(
+			soc, vdev_id);
+}
 
 /**
- * ol_txrx_flow_control_is_pause() - is osif paused by flow control
- * @vdev: vdev handle
+ * cdp_fc_get_tx_resource() - get data path resource count
+ * @soc: data path soc handle
+ * @pdev_id: datapath pdev ID
+ * @peer_addr: peer mac address
+ * @low_watermark: low resource threshold
+ * @high_watermark_offset: high resource threshold
  *
- * Return: true if osif is paused by flow control
+ * get data path resource count
+ *
+ * return true enough data path resource available
+ *        false resource is not avaialbe
  */
-bool ol_txrx_flow_control_is_pause(ol_txrx_vdev_handle vdev);
-bool
-ol_txrx_get_tx_resource(uint8_t sta_id,
-			 unsigned int low_watermark,
-			 unsigned int high_watermark_offset);
-
-int
-ol_txrx_ll_set_tx_pause_q_depth(uint8_t vdev_id, int pause_q_depth);
-
-#endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
-
-void ol_txrx_vdev_flush(ol_txrx_vdev_handle data_vdev);
-
-#ifdef CONFIG_ICNSS
-static inline void ol_txrx_vdev_pause(ol_txrx_vdev_handle vdev, uint32_t reason)
+static inline bool
+cdp_fc_get_tx_resource(ol_txrx_soc_handle soc, uint8_t pdev_id,
+		       struct qdf_mac_addr peer_addr,
+		       unsigned int low_watermark,
+		       unsigned int high_watermark_offset)
 {
-}
-#else
-void ol_txrx_vdev_pause(ol_txrx_vdev_handle vdev, uint32_t reason);
-#endif
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return false;
+	}
 
-#ifdef CONFIG_ICNSS
-static inline void ol_txrx_vdev_unpause(ol_txrx_vdev_handle data_vdev,
-					uint32_t reason)
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->get_tx_resource)
+		return false;
+
+	return soc->ops->l_flowctl_ops->get_tx_resource(soc, pdev_id, peer_addr,
+							low_watermark,
+							high_watermark_offset);
+}
+
+/**
+ * cdp_fc_ll_set_tx_pause_q_depth() - set pause queue depth
+ * @soc - data path soc handle
+ * @vdev_id - virtual interface id to register flow control
+ * @pause_q_depth - pending tx queue delth
+ *
+ * set pause queue depth
+ *
+ * return 0 success
+ */
+static inline int
+cdp_fc_ll_set_tx_pause_q_depth(ol_txrx_soc_handle soc,
+		uint8_t vdev_id, int pause_q_depth)
 {
-}
-#else
-void ol_txrx_vdev_unpause(ol_txrx_vdev_handle data_vdev, uint32_t reason);
-#endif
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return 0;
+	}
 
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->ll_set_tx_pause_q_depth)
+		return 0;
+
+	return soc->ops->l_flowctl_ops->ll_set_tx_pause_q_depth(
+			soc, vdev_id, pause_q_depth);
+
+}
+
+/**
+ * cdp_fc_vdev_flush() - flush tx queue
+ * @soc: data path soc handle
+ * @vdev_id: id of vdev
+ *
+ * flush tx queue
+ *
+ * return None
+ */
+static inline void
+cdp_fc_vdev_flush(ol_txrx_soc_handle soc, uint8_t vdev_id)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->vdev_flush)
+		return;
+
+	soc->ops->l_flowctl_ops->vdev_flush(soc, vdev_id);
+}
+
+/**
+ * cdp_fc_vdev_pause() - pause tx scheduler on vdev
+ * @soc: data path soc handle
+ * @vdev_id: id of vdev
+ * @reason: pause reason
+ * @pause_type: type of pause
+ *
+ * pause tx scheduler on vdev
+ *
+ * return None
+ */
+static inline void
+cdp_fc_vdev_pause(ol_txrx_soc_handle soc, uint8_t vdev_id,
+		  uint32_t reason, uint32_t pause_type)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->vdev_pause)
+		return;
+
+	soc->ops->l_flowctl_ops->vdev_pause(soc, vdev_id, reason, pause_type);
+}
+
+/**
+ * cdp_fc_vdev_unpause() - resume tx scheduler on vdev
+ * @soc: data path soc handle
+ * @vdev_id: id of vdev
+ * @reason: pause reason
+ * @pause_type: type of pause
+ *
+ * resume tx scheduler on vdev
+ *
+ * return None
+ */
+static inline void
+cdp_fc_vdev_unpause(ol_txrx_soc_handle soc, uint8_t vdev_id,
+		    uint32_t reason, uint32_t pause_type)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		return;
+	}
+
+	if (!soc->ops->l_flowctl_ops ||
+	    !soc->ops->l_flowctl_ops->vdev_unpause)
+		return;
+
+	soc->ops->l_flowctl_ops->vdev_unpause(soc, vdev_id, reason,
+					      pause_type);
+}
 #endif /* _CDP_TXRX_FC_LEG_H_ */

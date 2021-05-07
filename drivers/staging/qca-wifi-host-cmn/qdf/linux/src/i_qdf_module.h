@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2010-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -63,5 +54,8 @@
 
 #define __qdf_declare_param(_name, _type) \
 	module_param(_name, _type, 0600)
+
+#define __qdf_declare_param_array(_name, _type, _num) \
+	module_param_array(_name, _type, _num, 0600)
 
 #endif /* _I_QDF_MODULE_H */

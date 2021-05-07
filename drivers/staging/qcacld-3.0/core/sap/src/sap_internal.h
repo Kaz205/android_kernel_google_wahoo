@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef WLAN_QCT_WLANSAP_INTERNAL_H
@@ -41,34 +32,18 @@
 #include "sap_api.h"
 #include "sap_fsm_ext.h"
 #include "sap_ch_select.h"
+#include <wlan_scan_public_structs.h>
+#include <wlan_objmgr_pdev_obj.h>
+#include "wlan_vdev_mlme_main.h"
+#include "wlan_vdev_mlme_api.h"
 
-/*----------------------------------------------------------------------------
- * Preprocessor Definitions and Constants
- * -------------------------------------------------------------------------*/
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*----------------------------------------------------------------------------
- *  Defines
- * -------------------------------------------------------------------------*/
 /* DFS Non Occupancy Period =30 minutes, in microseconds */
 #define SAP_DFS_NON_OCCUPANCY_PERIOD      (30 * 60 * 1000 * 1000)
 
 #define SAP_DEBUG
-/* Used to enable or disable security on the BT-AMP link */
-#define WLANSAP_SECURITY_ENABLED_STATE true
-
-/* When MBSSID feature is enabled, SAP context is directly passed to SAP APIs */
-#define CDS_GET_SAP_CB(ctx) (ptSapContext)(ctx)
-
-#define CDS_GET_HAL_CB(ctx) cds_get_context(QDF_MODULE_ID_PE)
-/* MAC Address length */
-#define ANI_EAPOL_KEY_RSN_NONCE_SIZE      32
 
 #define IS_ETSI_WEATHER_CH(_ch)   ((_ch >= 120) && (_ch <= 130))
 #define IS_CH_BONDING_WITH_WEATHER_CH(_ch)   (_ch == 116)
-#define IS_CHAN_JAPAN_W53(_ch)    ((_ch >= 52)  && (_ch <= 64))
 #define IS_CHAN_JAPAN_INDOOR(_ch) ((_ch >= 36)  && (_ch <= 64))
 #define IS_CHAN_JAPAN_OUTDOOR(_ch)((_ch >= 100) && (_ch <= 140))
 #define DEFAULT_CAC_TIMEOUT (60 * 1000) /* msecs - 1 min */
@@ -76,11 +51,34 @@ extern "C" {
 #define SAP_CHAN_PREFERRED_INDOOR  1
 #define SAP_CHAN_PREFERRED_OUTDOOR 2
 
+/*SAP Specific logging*/
+
+#define sap_alert(params...) QDF_TRACE_FATAL(QDF_MODULE_ID_SAP, params)
+#define sap_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_SAP, params)
+#define sap_warn(params...) QDF_TRACE_WARN(QDF_MODULE_ID_SAP, params)
+#define sap_info(params...) QDF_TRACE_INFO(QDF_MODULE_ID_SAP, params)
+#define sap_debug(params...) QDF_TRACE_DEBUG(QDF_MODULE_ID_SAP, params)
+
+#define sap_nofl_alert(params...) \
+	QDF_TRACE_FATAL_NO_FL(QDF_MODULE_ID_SAP, params)
+#define sap_nofl_err(params...) \
+	QDF_TRACE_ERROR_NO_FL(QDF_MODULE_ID_SAP, params)
+#define sap_nofl_warn(params...) \
+	QDF_TRACE_WARN_NO_FL(QDF_MODULE_ID_SAP, params)
+#define sap_nofl_info(params...) \
+	QDF_TRACE_INFO_NO_FL(QDF_MODULE_ID_SAP, params)
+#define sap_nofl_debug(params...) \
+	QDF_TRACE_DEBUG_NO_FL(QDF_MODULE_ID_SAP, params)
+
+#define sap_alert_rl(params...) QDF_TRACE_FATAL_RL(QDF_MODULE_ID_SAP, params)
+#define sap_err_rl(params...) QDF_TRACE_ERROR_RL(QDF_MODULE_ID_SAP, params)
+#define sap_warn_rl(params...) QDF_TRACE_WARN_RL(QDF_MODULE_ID_SAP, params)
+#define sap_info_rl(params...) QDF_TRACE_INFO_RL(QDF_MODULE_ID_SAP, params)
+#define sap_debug_rl(params...) QDF_TRACE_DEBUG_RL(QDF_MODULE_ID_SAP, params)
+
 /*----------------------------------------------------------------------------
  *  Typedefs
  * -------------------------------------------------------------------------*/
-typedef struct sSapContext tSapContext;
-/* tSapContext, *ptSapContext; */
 /*----------------------------------------------------------------------------
  *  Type Declarations - For internal SAP context information
  * -------------------------------------------------------------------------*/
@@ -90,31 +88,19 @@ typedef struct sSapContext tSapContext;
 /* We were only using this syntax, when this was truly opaque. */
 /* (I.E., it was defined in a different file.) */
 
-/* SAP FSM states for Access Point role */
-typedef enum {
-	eSAP_DISCONNECTED,
-	eSAP_CH_SELECT,
-	eSAP_DFS_CAC_WAIT,
-	eSAP_STARTING,
-	eSAP_STARTED,
-	eSAP_DISCONNECTING
-} eSapFsmStates_t;
-
-/*----------------------------------------------------------------------------
- *  SAP context Data Type Declaration
- * -------------------------------------------------------------------------*/
-/*----------------------------------------------------------------------------
- *  Type Declarations - QOS related
- * -------------------------------------------------------------------------*/
-/* SAP QOS config */
-typedef struct sSapQosCfg {
-	uint8_t WmmIsEnabled;
-} tSapQosCfg;
-
-typedef struct sSapAcsChannelInfo {
-	uint32_t channelNum;
-	uint32_t weight;
-} tSapAcsChannelInfo;
+/**
+ * enum sap_fsm_state - SAP FSM states for Access Point role
+ * @SAP_INIT: init state
+ * @SAP_STARTING: starting phase
+ * @SAP_STARTED: up and running
+ * @SAP_STOPPING: about to stop and transitions to init
+ */
+enum sap_fsm_state {
+	SAP_INIT,
+	SAP_STARTING,
+	SAP_STARTED,
+	SAP_STOPPING
+};
 
 #ifdef FEATURE_AP_MCC_CH_AVOIDANCE
 /*
@@ -130,54 +116,38 @@ typedef struct sSapAcsChannelInfo {
  */
 struct sap_avoid_channels_info {
 	bool       present;
-	uint8_t    channels[WNI_CFG_VALID_CHANNEL_LIST_LEN];
+	uint8_t    channels[CFG_VALID_CHANNEL_LIST_LEN];
 };
 #endif /* FEATURE_AP_MCC_CH_AVOIDANCE */
 
-typedef struct sSapContext {
+struct sap_context {
 
-	qdf_mutex_t SapGlobalLock;
-
-	/* Include the current channel of AP */
-	uint32_t channel;
-	uint32_t secondary_ch;
+	/* Include the current channel frequency of AP */
+	uint32_t chan_freq;
+	uint32_t sec_ch_freq;
 
 	/* Include the SME(CSR) sessionId here */
 	uint8_t sessionId;
 
-	/* Include the key material for this physical link */
-	uint8_t key_type;
-	uint8_t key_length;
-	uint8_t key_material[32];
+	/* vdev object corresponding to sessionId */
+	struct wlan_objmgr_vdev *vdev;
 
 	/* Include the associations MAC addresses */
 	uint8_t self_mac_addr[CDS_MAC_ADDRESS_LEN];
 
-	/* Own SSID */
-	uint8_t ownSsid[MAX_SSID_LEN];
-	uint32_t ownSsidLen;
-
-	/* Flag for signaling if security is enabled */
-	uint8_t ucSecEnabled;
-
 	/* Include the SME(CSR) context here */
-	tCsrRoamProfile csr_roamProfile;
+	struct csr_roam_profile csr_roamProfile;
 	uint32_t csr_roamId;
 
-	/* Sap session */
-	bool isSapSessionOpen;
-
 	/* SAP event Callback to hdd */
-	tpWLAN_SAPEventCB pfnSapEventCallback;
-
-	/* Include the enclosing CDS context here */
-	void *p_cds_gctx;
+	sap_event_cb sap_event_cb;
 
 	/*
 	 * Include the state machine structure here, state var that keeps
 	 * track of state machine
 	 */
-	eSapFsmStates_t sapsMachine;
+	enum sap_fsm_state fsm_state;
+	enum sap_csa_reason_code csa_reason;
 
 	/* Actual storage for AP and self (STA) SSID */
 	tCsrSSIDInfo SSIDList[2];
@@ -192,43 +162,22 @@ typedef struct sSapContext {
 	struct qdf_mac_addr denyMacList[MAX_ACL_MAC_ADDRESS];
 	uint8_t nDenyMac;
 
-	/* QOS config */
-	tSapQosCfg SapQosCfg;
-
-	void *pUsrContext;
+	void *user_context;
 
 	uint32_t nStaWPARSnReqIeLength;
 	uint8_t pStaWpaRsnReqIE[MAX_ASSOC_IND_IE_LEN];
-	tSirAPWPSIEs APWPSIEs;
-	tSirRSNie APWPARSNIEs;
 
-#ifdef FEATURE_WLAN_WAPI
-	uint32_t nStaWAPIReqIeLength;
-	uint8_t pStaWapiReqIE[MAX_ASSOC_IND_IE_LEN];
-#endif
-
-	uint32_t nStaAddIeLength;
-	uint8_t pStaAddIE[MAX_ASSOC_IND_IE_LEN];
-	uint8_t *channelList;
+	uint32_t *freq_list;
 	uint8_t num_of_channel;
-	tSapChannelListInfo SapChnlList;
 	uint16_t ch_width_orig;
-	struct ch_params_s ch_params;
-
-	/* session to scan */
-	bool isScanSessionOpen;
-	/*
-	 * This list of channels will hold 5Ghz enabled,DFS in the
-	 * Current RegDomain.This list will be used to select a channel,
-	 * for SAP to start including any DFS channel and also to select
-	 * any random channel[5Ghz-(NON-DFS/DFS)],if SAP is operating
-	 * on a DFS channel and a RADAR is detected on the channel.
-	 */
-	tAll5GChannelList SapAllChnlList;
+	struct ch_params ch_params;
+	uint32_t chan_freq_before_switch_band;
+	enum phy_ch_width chan_width_before_switch_band;
 	uint32_t auto_channel_select_weight;
-	tSapAcsChannelInfo acsBestChannelInfo;
 	bool enableOverLapCh;
 	struct sap_acs_cfg *acs_cfg;
+
+	qdf_time_t acs_req_timestamp;
 
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
 	uint8_t cc_switch_mode;
@@ -263,94 +212,107 @@ typedef struct sSapContext {
 	eSapHddEvent sap_state;
 	eSapStatus sap_status;
 	uint32_t roc_ind_scan_id;
-
-	qdf_event_t sap_session_opened_evt;
 	bool is_pre_cac_on;
 	bool pre_cac_complete;
+	bool vendor_acs_dfs_lte_enabled;
+	uint8_t dfs_vendor_channel;
+	uint8_t dfs_vendor_chan_bw;
 	uint8_t chan_before_pre_cac;
 	uint16_t beacon_tx_rate;
-	tSirMacRateSet supp_rate_set;
-	tSirMacRateSet extended_rate_set;
 	enum sap_acs_dfs_mode dfs_mode;
+	wlan_scan_requester req_id;
 	uint8_t sap_sta_id;
+	bool dfs_cac_offload;
 	bool is_chan_change_inprogress;
-	bool enable_etsi_srd_chan_support;
-	bool stop_bss_in_progress;
-} *ptSapContext;
+	qdf_list_t owe_pending_assoc_ind_list;
+	uint32_t freq_before_ch_switch;
+};
 
 /*----------------------------------------------------------------------------
  *  External declarations for global context
  * -------------------------------------------------------------------------*/
 
-/*----------------------------------------------------------------------------
- *  SAP state machine event definition
- * -------------------------------------------------------------------------*/
-/* The event structure */
-typedef struct sWLAN_SAPEvent {
-	/* A VOID pointer type for all possible inputs */
+/**
+ * struct sap_sm_event - SAP state machine event definition
+ * @params: A VOID pointer type for all possible inputs
+ * @event: State machine input event message
+ * @u1: Introduced to handle csr_roam_complete_cb roamStatus
+ * @u2: Introduced to handle csr_roam_complete_cb roamResult
+ */
+struct sap_sm_event {
 	void *params;
-	/* State machine input event message */
 	uint32_t event;
-	/* introduced to handle csr_roam_completeCallback roamStatus */
 	uint32_t u1;
-	/* introduced to handle csr_roam_completeCallback roamResult */
 	uint32_t u2;
-} tWLAN_SAPEvent, *ptWLAN_SAPEvent;
+};
 
 /*----------------------------------------------------------------------------
  * Function Declarations and Documentation
  * -------------------------------------------------------------------------*/
-QDF_STATUS wlansap_context_get(ptSapContext ctx);
-void wlansap_context_put(ptSapContext ctx);
+
+/**
+ * sap_get_mac_context() - Get a pointer to the global MAC context
+ *
+ * Return: pointer to the global MAC context, or NULL if the MAC
+ *         context is no longer registered
+ */
+static inline struct mac_context *sap_get_mac_context(void)
+{
+	return cds_get_context(QDF_MODULE_ID_PE);
+}
+
+QDF_STATUS wlansap_context_get(struct sap_context *ctx);
+void wlansap_context_put(struct sap_context *ctx);
+
+/**
+ * wlansap_pre_start_bss_acs_scan_callback() - callback for scan results
+ * @mac_handle:    the mac_handle passed in with the scan request
+ * @sap_ctx:       the SAP context pointer.
+ * @scanid:        scan id passed
+ * @sessionid:     session identifier
+ * @scan_status:        status of scan -success, failure or abort
+ *
+ * Api for scan callback. This function is invoked as a result of scan
+ * completion and reports the scan results.
+ *
+ * Return: The QDF_STATUS code associated with performing the operation
+ */
+QDF_STATUS wlansap_pre_start_bss_acs_scan_callback(mac_handle_t mac_handle,
+						   struct sap_context *sap_ctx,
+						   uint8_t sessionid,
+						   uint32_t scanid,
+						   eCsrScanStatus scan_status);
+
+/**
+ * sap_select_channel() - select SAP channel
+ * @mac_handle: Opaque handle to the global MAC context
+ * @sap_ctx: Sap context
+ * @scan_list: scan entry list
+ *
+ * Runs a algorithm to select the best channel to operate in based on BSS
+ * rssi and bss count on each channel
+ *
+ * Returns: channel frequency if success, 0 otherwise
+ */
+uint32_t sap_select_channel(mac_handle_t mac_handle, struct sap_context *sap_ctx,
+			   qdf_list_t *scan_list);
 
 QDF_STATUS
-wlansap_scan_callback
-	(tHalHandle halHandle,
-	void *pContext,
-	uint8_t sessionId, uint32_t scanID, eCsrScanStatus scanStatus);
-
-QDF_STATUS
-wlansap_pre_start_bss_acs_scan_callback(
-	tHalHandle hal_handle,
-	void *pcontext,
-	uint8_t sessionid,
-	uint32_t scanid,
-	eCsrScanStatus scan_status
-);
-
-QDF_STATUS
-wlansap_roam_callback
-	(void *pContext,
-	tCsrRoamInfo *pCsrRoamInfo,
-	uint32_t roamId,
-	eRoamCmdStatus roamStatus, eCsrRoamResult roamResult);
-
-QDF_STATUS wlansap_clean_cb(ptSapContext pSapCtx, uint32_t freeFlag);
-QDF_STATUS SapFsm(ptSapContext sapContext, ptWLAN_SAPEvent sapEvent,
-			 uint8_t *status);
-
-void
-wlansap_pmc_full_pwr_req_cb(void *callbackContext, QDF_STATUS status);
-
-uint8_t sap_select_channel(tHalHandle halHandle, ptSapContext pSapCtx,
-			   tScanResultHandle pScanResult);
-
-QDF_STATUS
-sap_signal_hdd_event(ptSapContext sapContext,
-		  tCsrRoamInfo *pCsrRoamInfo,
+sap_signal_hdd_event(struct sap_context *sap_ctx,
+		  struct csr_roam_info *pCsrRoamInfo,
 		  eSapHddEvent sapHddevent, void *);
 
-QDF_STATUS sap_fsm(ptSapContext sapContext, ptWLAN_SAPEvent sapEvent);
+QDF_STATUS sap_fsm(struct sap_context *sap_ctx, struct sap_sm_event *sap_event);
 
 eSapStatus
-sapconvert_to_csr_profile(tsap_Config_t *pconfig_params,
-		       eCsrRoamBssType bssType,
-		       tCsrRoamProfile *profile);
+sapconvert_to_csr_profile(struct sap_config *config,
+			  eCsrRoamBssType bssType,
+			  struct csr_roam_profile *profile);
 
-void sap_free_roam_profile(tCsrRoamProfile *profile);
+void sap_free_roam_profile(struct csr_roam_profile *profile);
 
 QDF_STATUS
-sap_is_peer_mac_allowed(ptSapContext sapContext, uint8_t *peerMac);
+sap_is_peer_mac_allowed(struct sap_context *sap_ctx, uint8_t *peerMac);
 
 void
 sap_sort_mac_list(struct qdf_mac_addr *macList, uint8_t size);
@@ -370,47 +332,56 @@ bool
 sap_search_mac_list(struct qdf_mac_addr *macList, uint8_t num_mac,
 		 uint8_t *peerMac, uint8_t *index);
 
-QDF_STATUS sap_acquire_global_lock(ptSapContext pSapCtx);
+QDF_STATUS sap_init_dfs_channel_nol_list(struct sap_context *sap_ctx);
 
-QDF_STATUS sap_release_global_lock(ptSapContext pSapCtx);
-
-uint8_t
-sap_indicate_radar(ptSapContext sapContext,
-		 tSirSmeDfsEventInd *dfs_event);
-
-QDF_STATUS sap_init_dfs_channel_nol_list(ptSapContext sapContext);
-
-bool sap_dfs_is_channel_in_nol_list(ptSapContext sapContext,
+bool sap_dfs_is_channel_in_nol_list(struct sap_context *sap_ctx,
 				    uint8_t channelNumber,
 				    ePhyChanBondState chanBondState);
 void sap_dfs_cac_timer_callback(void *data);
 
-void sap_cac_reset_notify(tHalHandle hHal);
+/**
+ * sap_cac_reset_notify() - BSS cleanup notification handler
+ * @mac_handle: Opaque handle to the global MAC context
+ *
+ * This function should be called upon stop bss indication to clean up
+ * DFS global structure.
+ */
+void sap_cac_reset_notify(mac_handle_t mac_handle);
 
-bool
-sap_channel_matrix_check(ptSapContext sapContext,
-			 ePhyChanBondState cbMode,
-			 uint8_t target_channel);
+bool is_concurrent_sap_ready_for_channel_change(mac_handle_t mac_handle,
+						struct sap_context *sap_ctx);
 
-bool is_concurrent_sap_ready_for_channel_change(tHalHandle hHal,
-			ptSapContext sapContext);
-bool sap_is_conc_sap_doing_scc_dfs(tHalHandle hal,
-			ptSapContext given_sapctx);
-uint8_t sap_get_total_number_sap_intf(tHalHandle hHal);
+bool sap_is_conc_sap_doing_scc_dfs(mac_handle_t mac_handle,
+				   struct sap_context *given_sapctx);
 
-bool sap_dfs_is_w53_invalid(tHalHandle hHal, uint8_t channelID);
+uint8_t sap_get_total_number_sap_intf(mac_handle_t mac_handle);
 
-bool sap_dfs_is_channel_in_preferred_location(tHalHandle hHal,
-					      uint8_t channelID);
+/**
+ * sap_channel_sel - Function for initiating scan request for ACS
+ * @sap_context: Sap Context value.
+ *
+ * Initiates Scan for ACS to pick a channel.
+ *
+ * Return: The QDF_STATUS code associated with performing the operation.
+ */
+QDF_STATUS sap_channel_sel(struct sap_context *sap_ctx);
 
-QDF_STATUS sap_goto_channel_sel(
-	ptSapContext sapContext,
-	ptWLAN_SAPEvent sapEvent,
-	bool sap_do_acs_pre_start_bss,
-	bool check_for_connection_update);
+/**
+ * sap_validate_chan - Function validate the channel and forces SCC
+ * @sap_context: Sap Context value.
+ * @pre_start_bss: if its called pre start BSS with valid channel.
+ * @check_for_connection_update: true, check and wait for connection update
+ *				 false, do not perform connection update
+ *
+ * validate and update the channel in case of force SCC.
+ *
+ * Return: The QDF_STATUS code associated with performing the operation.
+ */
+QDF_STATUS
+sap_validate_chan(struct sap_context *sap_context,
+		  bool pre_start_bss,
+		  bool check_for_connection_update);
 
-void sap_config_acs_result(tHalHandle hal, ptSapContext sap_ctx,
-							uint32_t sec_ch);
 /**
  * sap_check_in_avoid_ch_list() - checks if given channel present is channel
  * avoidance list
@@ -425,41 +396,90 @@ void sap_config_acs_result(tHalHandle hal, ptSapContext sap_ctx,
  * Return: true, if channel was present, false othersie.
  */
 bool
-sap_check_in_avoid_ch_list(ptSapContext sap_ctx, uint8_t channel);
-QDF_STATUS sap_open_session(tHalHandle hHal, ptSapContext sapContext,
-				uint32_t *session_id);
-QDF_STATUS sap_close_session(tHalHandle hHal,
-			     ptSapContext sapContext,
-			     csr_roamSessionCloseCallback callback, bool valid);
+sap_check_in_avoid_ch_list(struct sap_context *sap_ctx, uint8_t channel);
+
+/**
+ * sap_set_session_param() - set sap related param to sap context and global var
+ * @mac_handle: Opaque handle to the global MAC context
+ * @sapctx: pointer to sapctx
+ * @session_id: session id for sap
+ *
+ * This API will set appropriate softap parameters to sap context
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sap_set_session_param(mac_handle_t mac_handle,
+				 struct sap_context *sapctx,
+				 uint32_t session_id);
+
+/**
+ * sap_clear_session_param() - clear sap related param from sap context
+ * @mac_handle: Opaque handle to the global MAC context
+ * @sapctx: pointer to sapctx
+ * @session_id: session id for sap
+ *
+ * This API will clear appropriate softap parameters from sap context
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sap_clear_session_param(mac_handle_t mac_handle,
+				   struct sap_context *sapctx,
+				   uint32_t session_id);
+
+void sap_scan_event_callback(struct wlan_objmgr_vdev *vdev,
+			struct scan_event *event, void *arg);
+
+#ifdef DFS_COMPONENT_ENABLE
+/**
+ * sap_indicate_radar() - Process radar indication
+ * @sap_ctx: pointer to sap context
+ *
+ * process radar indication.
+ *
+ * Return: channel to which sap wishes to switch.
+ */
+uint8_t sap_indicate_radar(struct sap_context *sap_ctx);
+#else
+static inline uint8_t sap_indicate_radar(struct sap_context *sap_ctx)
+{
+	return 0;
+}
+#endif
 
 /**
  * sap_select_default_oper_chan() - Select AP mode default operating channel
+ * @mac_ctx: mac context
  * @acs_cfg: pointer to ACS config info
  *
  * Select AP mode default operating channel based on ACS hw mode and channel
  * range configuration when ACS scan fails due to some reasons, such as scan
  * timeout, etc.
  *
- * Return: Selected operating channel number
+ * Return: Selected operating channel frequency
  */
-uint8_t sap_select_default_oper_chan(struct sap_acs_cfg *acs_cfg);
+uint32_t sap_select_default_oper_chan(struct mac_context *mac_ctx,
+				      struct sap_acs_cfg *acs_cfg);
+
+/*
+ * sap_is_dfs_cac_wait_state() - check if sap is in cac wait state
+ * @sap_ctx: sap context to check
+ *
+ * Return: true if sap is in cac wait state
+ */
+bool sap_is_dfs_cac_wait_state(struct sap_context *sap_ctx);
 
 /**
- * sap_channel_in_acs_channel_list() - check if channel in acs channel list
- * @channel_num: channel to check
- * @sap_ctx: struct ptSapContext
- * @spect_info_params: strcut tSapChSelSpectInfo
+ * sap_chan_bond_dfs_sub_chan - check bonded channel includes dfs sub chan
+ * @sap_context: Handle to SAP context.
+ * @channel_number: chan whose bonded chan will be checked
+ * @bond_state: The channel bonding mode of the passed channel.
  *
- * This function checks if specified channel is in the configured ACS channel
- * list.
+ * This function checks if a given bonded channel includes dfs sub chan.
  *
- * Return: channel number if in acs channel list or SAP_CHANNEL_NOT_SELECTED
+ * Return: true if at least one dfs sub chan is bonded, otherwise false
  */
-uint8_t sap_channel_in_acs_channel_list(uint8_t channel_num,
-					ptSapContext sap_ctx,
-					tSapChSelSpectInfo *spect_info_params);
-
-#ifdef __cplusplus
-}
-#endif
+bool
+sap_chan_bond_dfs_sub_chan(struct sap_context *sap_context,
+			   uint8_t channel_number,
+			   ePhyChanBondState bond_state);
 #endif

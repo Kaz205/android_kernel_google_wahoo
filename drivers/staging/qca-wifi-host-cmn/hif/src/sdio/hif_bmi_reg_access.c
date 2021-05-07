@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
- *
- ***Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,12 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #include "athdefs.h"
 #include "a_types.h"
 #include "a_osapi.h"
@@ -34,12 +25,14 @@
 #include "htc_api.h"
 #include "if_sdio.h"
 #include "regtable_sdio.h"
+#include "hif_sdio_dev.h"
 
 #define BMI_COMMUNICATION_TIMEOUT       100000
 
 static bool pending_events_func_check;
 static uint32_t command_credits;
 static uint32_t *p_bmi_cmd_credits = &command_credits;
+
 /* BMI Access routines */
 
 /**
@@ -51,14 +44,15 @@ static uint32_t *p_bmi_cmd_credits = &command_credits;
  * Return: QDF_STATUS_SUCCESS for success.
  */
 static QDF_STATUS
-hif_bmi_buffer_send(struct hif_sdio_dev *device, char *buffer, uint32_t length)
+hif_bmi_buffer_send(struct hif_sdio_softc *scn, struct hif_sdio_dev *device,
+		    char *buffer, uint32_t length)
 {
 	QDF_STATUS status;
 	uint32_t timeout;
 	uint32_t address;
 	uint32_t mbox_address[HTC_MAILBOX_NUM_MAX];
 
-	hif_configure_device(device, HIF_DEVICE_GET_MBOX_ADDR,
+	hif_configure_device(NULL, device, HIF_DEVICE_GET_FIFO_ADDR,
 			     &mbox_address[0], sizeof(mbox_address));
 
 	*p_bmi_cmd_credits = 0;
@@ -177,14 +171,14 @@ hif_bmi_buffer_receive(struct hif_sdio_dev *device,
 		 * function to get pending events
 		 * do this only once!
 		 */
-		hif_configure_device(device,
+		hif_configure_device(NULL, device,
 				     HIF_DEVICE_GET_PENDING_EVENTS_FUNC,
 				     &get_pending_events_func,
 				     sizeof(get_pending_events_func));
 		pending_events_func_check = true;
 	}
 
-	hif_configure_device(device, HIF_DEVICE_GET_MBOX_ADDR,
+	hif_configure_device(NULL, device, HIF_DEVICE_GET_FIFO_ADDR,
 			     &mbox_address[0], sizeof(mbox_address));
 
 	/*
@@ -245,7 +239,7 @@ hif_bmi_buffer_receive(struct hif_sdio_dev *device,
 		timeout = BMI_COMMUNICATION_TIMEOUT;
 		while ((!want_timeout || timeout--) && !word_available) {
 
-			if (get_pending_events_func != NULL) {
+			if (get_pending_events_func) {
 				status = get_pending_events_func(device,
 							&hif_pending_events,
 							NULL);
@@ -297,18 +291,20 @@ hif_bmi_buffer_receive(struct hif_sdio_dev *device,
  *
  * Return: QDF_STATUS_SUCCESS for success.
  */
-QDF_STATUS hif_reg_based_get_target_info(struct hif_opaque_softc *hif_ctx,
-					 struct bmi_target_info *targ_info) {
+QDF_STATUS
+hif_reg_based_get_target_info(struct hif_opaque_softc *hif_ctx,
+			      struct bmi_target_info *targ_info)
+{
 	QDF_STATUS status;
 	uint32_t cid;
 	struct hif_sdio_softc *scn = HIF_GET_SDIO_SOFTC(hif_ctx);
 	struct hif_sdio_dev *device = scn->hif_handle;
 
-	AR_DEBUG_PRINTF(ATH_DEBUG_BMI,
+	AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 			("BMI Get Target Info: Enter (device: 0x%pK)\n",
 			device));
 	cid = BMI_GET_TARGET_INFO;
-	status = hif_bmi_buffer_send(device, (char *) &cid, sizeof(cid));
+	status = hif_bmi_buffer_send(scn, device, (char *)&cid, sizeof(cid));
 	if (status != QDF_STATUS_SUCCESS) {
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 				("%s:Unable to write to the device\n",
@@ -373,7 +369,7 @@ QDF_STATUS hif_reg_based_get_target_info(struct hif_opaque_softc *hif_ctx,
 		targ_info->target_type = TARGET_TYPE_AR6001;
 	}
 
-	AR_DEBUG_PRINTF(ATH_DEBUG_BMI,
+	AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 			("BMI Get Target Info: Exit (ver: 0x%x type: 0x%x)\n",
 			 targ_info->target_ver,
 			 targ_info->target_type));
@@ -409,14 +405,14 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *hif_ctx,
 	struct hif_sdio_dev *device = scn->hif_handle;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
-	if (device == NULL) {
+	if (!device) {
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 			("%s:Null device argument\n",
 			__func__));
 		return QDF_STATUS_E_INVAL;
 	}
 
-	status = hif_bmi_buffer_send(device, send_message, length);
+	status = hif_bmi_buffer_send(scn, device, send_message, length);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 				("%s:Unable to Send Message to device\n",
@@ -424,7 +420,7 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *hif_ctx,
 		return status;
 	}
 
-	if (response_message != NULL) {
+	if (response_message) {
 		status = hif_bmi_buffer_receive(device, response_message,
 						*response_length,
 						timeout_ms ? true : false);
@@ -437,6 +433,10 @@ QDF_STATUS hif_exchange_bmi_msg(struct hif_opaque_softc *hif_ctx,
 	}
 
 	return status;
+}
+
+void hif_register_bmi_callbacks(struct hif_opaque_softc *hif_ctx)
+{
 }
 
 #ifdef BRINGUP_DEBUG

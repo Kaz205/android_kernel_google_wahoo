@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2014, 2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2014, 2017-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,19 +16,15 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef _WDI_EVENT_API_H_
 #define _WDI_EVENT_API_H_
 
 #include "wdi_event.h"
-
+#include <cdp_txrx_handle.h>
+#include <cdp_txrx_cmn_struct.h>
 struct ol_txrx_pdev_t;
 
+#ifdef WDI_EVENT_ENABLE
 /**
  * @brief Subscribe to a specified WDI event.
  * @details
@@ -42,14 +35,14 @@ struct ol_txrx_pdev_t;
  *  The order in which callback functions from multiple subscribers are
  *  invoked is unspecified.
  *
- * @param pdev - the event physical device, that maintains the event lists
+ * @param soc_hdl - datapath soc handle
+ * @param pdev_id - physical device instance id
  * @param event_cb_sub - the callback and context for the event subscriber
  * @param event - which event's notifications are being subscribed to
- * @return error code, or A_OK for success
+ * @return error code, or 0 for success
  */
-A_STATUS wdi_event_sub(struct ol_txrx_pdev_t *txrx_pdev,
-		       wdi_event_subscribe *event_cb_sub,
-		       enum WDI_EVENT event);
+int wdi_event_sub(struct cdp_soc_t *soc, uint8_t pdev_id,
+		  wdi_event_subscribe *event_cb_sub, uint32_t event);
 
 /**
  * @brief Unsubscribe from a specified WDI event.
@@ -59,35 +52,50 @@ A_STATUS wdi_event_sub(struct ol_txrx_pdev_t *txrx_pdev,
  *  This function shall only be called if there was a successful prior call
  *  to event_sub() on the same wdi_event_subscribe object.
  *
- * @param pdev - the event physical device with the list of event subscribers
+ * @param soc_hdl - datapath soc handle
+ * @param pdev_id - physical device instance id
  * @param event_cb_sub - the event subscription object
  * @param event - which event is being unsubscribed
- * @return error code, or A_OK for success
+ * @return error code, or 0 for success
  */
-A_STATUS wdi_event_unsub(struct ol_txrx_pdev_t *txrx_pdev,
-			 wdi_event_subscribe *event_cb_sub,
-			 enum WDI_EVENT event);
+int wdi_event_unsub(struct cdp_soc_t *soc, uint8_t pdev_id,
+		    wdi_event_subscribe *event_cb_sub, uint32_t event);
 
-#ifdef WDI_EVENT_ENABLE
 
 void wdi_event_handler(enum WDI_EVENT event,
-		       struct ol_txrx_pdev_t *txrx_pdev, void *data);
+		       uint8_t pdev_id, void *data);
 A_STATUS wdi_event_attach(struct ol_txrx_pdev_t *txrx_pdev);
 A_STATUS wdi_event_detach(struct ol_txrx_pdev_t *txrx_pdev);
 
 #else
 
 static inline void wdi_event_handler(enum WDI_EVENT event,
-		       struct ol_txrx_pdev_t *txrx_pdev, void *data)
+				     uint8_t pdev_id, void *data)
 {
 }
+
 static inline A_STATUS wdi_event_attach(struct ol_txrx_pdev_t *txrx_pdev)
 {
 	return A_OK;
 }
+
 static inline A_STATUS wdi_event_detach(struct ol_txrx_pdev_t *txrx_pdev)
 {
 	return A_OK;
+}
+
+static inline int wdi_event_sub(struct cdp_soc_t *soc, uint8_t pdev_id,
+				wdi_event_subscribe *event_cb_sub,
+				uint32_t event)
+{
+	return 0;
+}
+
+static inline int wdi_event_unsub(struct cdp_soc_t *soc, uint8_t pdev_id,
+				  wdi_event_subscribe *event_cb_sub,
+				  uint32_t event)
+{
+	return 0;
 }
 #endif /* WDI_EVENT_ENABLE */
 

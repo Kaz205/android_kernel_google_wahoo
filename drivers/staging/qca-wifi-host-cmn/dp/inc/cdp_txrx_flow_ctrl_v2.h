@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 /**
  * @file cdp_txrx_flow_ctrl_v2.h
  * @brief Define the host data path flow control version 2 API
@@ -31,32 +23,110 @@
  */
 #ifndef _CDP_TXRX_FC_V2_H_
 #define _CDP_TXRX_FC_V2_H_
-
-#include "cdp_txrx_flow_ctrl_legacy.h"
+#include <cdp_txrx_ops.h>
 
 /**
- * @typedef ol_tx_pause_callback_fp
- * @brief OSIF function registered with the data path
+ * cdp_register_pause_cb() - Register flow control callback function pointer
+ * @soc - data path soc handle
+ * @pause_cb - Pause callback intend to register
+ *
+ * Register flow control callback function pointer and client context pointer
+ *
+ * return QDF_STATUS_SUCCESS success
  */
-typedef void (*ol_tx_pause_callback_fp)(uint8_t vdev_id,
-					enum netif_action_type action,
-					enum netif_reason_type reason);
-
-#ifdef QCA_LL_TX_FLOW_CONTROL_V2
-QDF_STATUS ol_txrx_register_pause_cb(ol_tx_pause_callback_fp pause_cb);
-
-void ol_tx_set_desc_global_pool_size(uint32_t num_msdu_desc);
-#else
-static inline
-QDF_STATUS ol_txrx_register_pause_cb(ol_tx_pause_callback_fp pause_cb)
+static inline QDF_STATUS
+cdp_register_pause_cb(ol_txrx_soc_handle soc,
+		tx_pause_callback pause_cb)
 {
-	return QDF_STATUS_SUCCESS;
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	if (!soc->ops->flowctl_ops ||
+	    !soc->ops->flowctl_ops->register_pause_cb)
+		return QDF_STATUS_SUCCESS;
+
+	return soc->ops->flowctl_ops->register_pause_cb(soc, pause_cb);
 
 }
 
-static inline void ol_tx_set_desc_global_pool_size(uint32_t num_msdu_desc)
+/**
+ * cdp_set_desc_global_pool_size() - set global device pool size
+ * @soc - data path soc handle
+ * @num_msdu_desc - descriptor pool size
+ *
+ * set global device pool size
+ *
+ * return none
+ */
+static inline void
+cdp_set_desc_global_pool_size(ol_txrx_soc_handle soc,
+		uint32_t num_msdu_desc)
 {
-}
-#endif
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
 
+	if (!soc->ops->flowctl_ops ||
+	    !soc->ops->flowctl_ops->set_desc_global_pool_size)
+		return;
+
+	soc->ops->flowctl_ops->set_desc_global_pool_size(
+			num_msdu_desc);
+}
+
+/**
+ * cdp_dump_flow_pool_info() - dump flow pool information
+ * @soc - data path soc handle
+ *
+ * dump flow pool information
+ *
+ * return none
+ */
+static inline void
+cdp_dump_flow_pool_info(struct cdp_soc_t *soc)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			"%s invalid instance", __func__);
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->flowctl_ops ||
+	    !soc->ops->flowctl_ops->dump_flow_pool_info)
+		return;
+
+	soc->ops->flowctl_ops->dump_flow_pool_info(soc);
+}
+
+/**
+ * cdp_tx_desc_thresh_reached() - Check if avail tx desc meet threshold
+ * @soc: data path soc handle
+ * @vdev_id: vdev_id corresponding to vdev start
+ *
+ * Return: true if threshold is met, false if not
+ */
+static inline bool
+cdp_tx_desc_thresh_reached(struct cdp_soc_t *soc, uint8_t vdev_id)
+{
+	if (!soc || !soc->ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
+			  "%s invalid instance", __func__);
+		QDF_BUG(0);
+		return false;
+	}
+
+	if (!soc->ops->flowctl_ops ||
+	    !soc->ops->flowctl_ops->tx_desc_thresh_reached)
+		return false;
+
+	return soc->ops->flowctl_ops->tx_desc_thresh_reached(soc, vdev_id);
+}
 #endif /* _CDP_TXRX_FC_V2_H_ */

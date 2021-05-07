@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,12 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
-
 #ifndef _ANIGLOBAL_H
 #define _ANIGLOBAL_H
 
@@ -36,7 +27,6 @@
 #include "lim_global.h"
 #include "sch_global.h"
 #include "sys_global.h"
-#include "cfg_global.h"
 #include "sir_api.h"
 
 #include "csr_api.h"
@@ -48,17 +38,45 @@
 
 #include "sme_rrm_internal.h"
 #include "rrm_global.h"
-#include "p2p_api.h"
 
 #include <lim_ft_defs.h>
+#include "wlan_objmgr_psoc_obj.h"
+#include "wlan_mlme_public_struct.h"
 
-/* Check if this definition can actually move here from halInternal.h even for Volans. In that case */
-/* this featurization can be removed. */
-#define PMAC_STRUCT(_hHal)  ((tpAniSirGlobal)_hHal)
+/**
+ * MAC_CONTEXT() - Convert an opaque mac handle into a mac context
+ * @handle: MAC handle to be converted
+ *
+ * Given an opaque mac handle this function will return the mac
+ * context that is associated with that handle.
+ *
+ * This is the inverse function of MAC_HANDLE()
+ *
+ * Return: mac context for @handle
+ */
+static inline struct mac_context *MAC_CONTEXT(mac_handle_t handle)
+{
+	return (struct mac_context *)handle;
+}
 
-#define ANI_DRIVER_TYPE(pMac)     (((tpAniSirGlobal)(pMac))->gDriverType)
+/**
+ * MAC_HANDLE() - Convert a mac context into an opaque mac handle
+ * @mac: MAC context to be converted
+ *
+ * Given a mac context this function will return the opaque mac handle
+ * that is associated with that handle.
+ *
+ * This is the inverse function of MAC_CONTEXT()
+ *
+ * Return: opaque handle for @mac
+ */
+static inline mac_handle_t MAC_HANDLE(struct mac_context *mac)
+{
+	return (mac_handle_t)mac;
+}
 
-#define IS_MIRACAST_SESSION_PRESENT(pMac)     (((tpAniSirGlobal)(pMac))->fMiracastSessionPresent ? 1 : 0)
+#define ANI_DRIVER_TYPE(mac)     (((struct mac_context *)(mac))->gDriverType)
+
 /* ------------------------------------------------------------------- */
 /* Bss Qos Caps bit map definition */
 #define LIM_BSS_CAPS_OFFSET_HCF 0
@@ -77,19 +95,6 @@
 /* 40 beacons per heart beat interval is the default + 1 to count the rest */
 #define MAX_NO_BEACONS_PER_HEART_BEAT_INTERVAL 41
 
-/* max number of legacy bssid we can store during scan on one channel */
-#define MAX_NUM_LEGACY_BSSID_PER_CHANNEL    10
-
-#define P2P_WILDCARD_SSID "DIRECT-"     /* TODO Put it in proper place; */
-#define P2P_WILDCARD_SSID_LEN 7
-
-/* Flags for processing single BSS */
-#define WLAN_SKIP_RSSI_UPDATE   0x01
-
-#ifdef WLAN_FEATURE_CONCURRENT_P2P
-#define MAX_NO_OF_P2P_SESSIONS  5
-#endif /* WLAN_FEATURE_CONCURRENT_P2P */
-
 #define SPACE_ASCII_VALUE  32
 
 #define WLAN_HOST_SEQ_NUM_MIN                           2048
@@ -97,34 +102,7 @@
 #define LOW_SEQ_NUM_MASK                                0x000F
 #define HIGH_SEQ_NUM_MASK                               0x0FF0
 #define HIGH_SEQ_NUM_OFFSET                             4
-
-/* vendor element ID */
-#define IE_EID_VENDOR        (221) /* 0xDD */
-#define IE_LEN_SIZE          (1)
-#define IE_EID_SIZE          (1)
-/* Minimum size of vendor IE = 3 bytes of oui_data + 1 byte of data */
-#define IE_VENDOR_OUI_SIZE   (4)
-
-/*
- * NSS cfg bit definition.
- * STA          BIT[0:1]
- * SAP          BIT[2:3]
- * P2P_GO       BIT[4:5]
- * P2P_CLIENT   BIT[6:7]
- * IBSS         BIT[8:9]
- * TDLS         BIT[10:11]
- * P2P_DEVICE   BIT[12:13]
- * OCB          BIT[14:15]
- */
-
-#define CFG_STA_NSS(_x)     ((((_x) >> 0) & 0x3) ? (((_x) >> 0) & 0x3) : 1)
-#define CFG_SAP_NSS(_x)     ((((_x) >> 2) & 0x3) ? (((_x) >> 2) & 0x3) : 1)
-#define CFG_P2P_GO_NSS(_x)  ((((_x) >> 4) & 0x3) ? (((_x) >> 4) & 0x3) : 1)
-#define CFG_P2P_CLI_NSS(_x) ((((_x) >> 6) & 0x3) ? (((_x) >> 6) & 0x3) : 1)
-#define CFG_IBSS_NSS(_x)    ((((_x) >> 8) & 0x3) ? (((_x) >> 8) & 0x3) : 1)
-#define CFG_TDLS_NSS(_x)    ((((_x) >> 10) & 0x3) ? (((_x) >> 10) & 0x3) : 1)
-#define CFG_P2P_DEV_NSS(_x) ((((_x) >> 12) & 0x3) ? (((_x) >> 12) & 0x3) : 1)
-#define CFG_OCB_NSS(_x)     ((((_x) >> 14) & 0x3) ? (((_x) >> 14) & 0x3) : 1)
+#define DEF_HE_AUTO_SGI_LTF                             0x0F07
 
 /**
  * enum log_event_type - Type of event initiating bug report
@@ -252,15 +230,15 @@ enum wifi_logging_ring_id {
 
 /* ------------------------------------------------------------------- */
 /* Change channel generic scheme */
-typedef void (*CHANGE_CHANNEL_CALLBACK)(tpAniSirGlobal pMac, QDF_STATUS status,
+typedef void (*CHANGE_CHANNEL_CALLBACK)(struct mac_context *mac, QDF_STATUS status,
 					uint32_t *data,
-					tpPESession psessionEntry);
+					struct pe_session *pe_session);
 
 /* / LIM global definitions */
-typedef struct sAniSirLimIbss {
-	void *pHdr;
-	void *pBeacon;
-} tAniSirLimIbss;
+struct lim_ibss_info {
+	void *mac_hdr;
+	void *beacon;
+};
 
 typedef struct sDialogueToken {
 	/* bytes 0-3 */
@@ -295,8 +273,6 @@ typedef struct sLimTimers {
 	/* Join Failure timeout on STA */
 	TX_TIMER gLimJoinFailureTimer;
 
-	TX_TIMER gLimPeriodicProbeReqTimer;
-
 	/* CNF_WAIT timer */
 	TX_TIMER *gpLimCnfWaitTimer;
 
@@ -306,32 +282,11 @@ typedef struct sLimTimers {
 	TX_TIMER gLimUpdateOlbcCacheTimer;
 
 	TX_TIMER gLimChannelSwitchTimer;
-	/* This TIMER is started on the STA, as indicated by the */
-	/* AP in its Quiet BSS IE, for the specified interval */
-	TX_TIMER gLimQuietTimer;
-	/* This TIMER is started on the AP, prior to the AP going */
-	/* into LEARN mode */
-	/* This TIMER is started on the STA, for the specified */
-	/* quiet duration */
-	TX_TIMER gLimQuietBssTimer;
-
 	TX_TIMER gLimFTPreAuthRspTimer;
-
-#ifdef FEATURE_WLAN_ESE
-	TX_TIMER gLimEseTsmTimer;
-#endif
-	TX_TIMER gLimRemainOnChannelTimer;
 
 	TX_TIMER gLimPeriodicJoinProbeReqTimer;
 	TX_TIMER gLimDisassocAckTimer;
 	TX_TIMER gLimDeauthAckTimer;
-	/* This timer is started when single shot NOA insert msg is sent to FW for scan in P2P GO mode */
-	TX_TIMER gLimP2pSingleShotNoaInsertTimer;
-	/* This timer is used to convert active channel to
-	 * passive channel when there is no beacon
-	 * for a period of time on a particular DFS channel
-	 */
-	TX_TIMER gLimActiveToPassiveChannelTimer;
 	TX_TIMER g_lim_periodic_auth_retry_timer;
 
 	/* SAE authentication related timer */
@@ -351,69 +306,15 @@ typedef struct {
 typedef struct sAniSirLim {
 	/* ////////////////////////////////////     TIMER RELATED START /////////////////////////////////////////// */
 
-	tLimTimers limTimers;
+	tLimTimers lim_timers;
 	/* / Flag to track if LIM timers are created or not */
 	uint32_t gLimTimersCreated;
 
 	/* ////////////////////////////////////     TIMER RELATED END /////////////////////////////////////////// */
 
-	/* ////////////////////////////////////     SCAN/LEARN RELATED START /////////////////////////////////////////// */
-	/**
-	 * This flag when set, will use scan mode instead of
-	 * Learn mode on BP/AP. By default this flag is set
-	 * to true until HIF getting stuck in 0x800 state is
-	 * debugged.
-	 */
-	uint32_t gLimUseScanModeForLearnMode;
-
-	/**
-	 * This is useful for modules other than LIM
-	 * to see if system is in scan/learn mode or not
-	 */
-	uint32_t gLimSystemInScanLearnMode;
-
-	/* Scan related globals on STA */
-	uint8_t gLimReturnAfterFirstMatch;
-	uint8_t gLim24Band11dScanDone;
-	uint8_t gLim50Band11dScanDone;
-	uint8_t gLimReturnUniqueResults;
-
-	/* / Place holder for current channel ID */
-	/* / being scanned */
-	uint32_t gLimCurrentScanChannelId;
-
-	/* Hold onto SCAN criteria */
-	/* The below is used in P2P GO case when we need to defer processing SME Req
-	 * to LIM and insert NOA first and process SME req once SNOA is started
-	 */
-	uint16_t gDeferMsgTypeForNOA;
-	uint32_t *gpDefdSmeMsgForNOA;
-
-	tLimMlmScanReq *gpLimMlmScanReq;
-
-
-	/* Used to store the list of legacy bss sta detected during scan on one channel */
-	uint16_t gLimRestoreCBNumScanInterval;
-	uint16_t gLimRestoreCBCount;
-	tSirMacAddr gLimLegacyBssidList[MAX_NUM_LEGACY_BSSID_PER_CHANNEL];
-
-	/* abort scan is used to abort an on-going scan */
-	uint8_t abortScan;
-	tLimScanChnInfo scanChnInfo;
-
 	struct lim_scan_channel_status scan_channel_status;
 
-	/* ////////////////////////////////////     SCAN/LEARN RELATED START /////////////////////////////////////////// */
-	tSirMacAddr gSelfMacAddr;       /* added for BT-AMP Support */
-
-	/* ////////////////////////////////////////     BSS RELATED END /////////////////////////////////////////// */
-	/* Place holder for StartBssReq message */
-	/* received by SME state machine */
-
 	uint8_t gLimCurrentBssUapsd;
-
-	/* This is used for testing sta legacy bss detect feature */
-	uint8_t gLimForceNoPropIE;
 
 	/* */
 	/* Store the BSS Index returned by HAL during */
@@ -448,7 +349,7 @@ typedef struct sAniSirLim {
 	uint32_t ibss_retry_cnt;
 
 	/* ibss info - params for which ibss to join while coalescing */
-	tAniSirLimIbss ibssInfo;
+	struct lim_ibss_info ibss_info;
 
 	/* ////////////////////////////////////////     IBSS RELATED END /////////////////////////////////////////// */
 
@@ -464,10 +365,7 @@ typedef struct sAniSirLim {
 
 	/* / Variable to keep track of number of currently associated STAs */
 	uint16_t gLimNumOfAniSTAs;      /* count of ANI peers */
-	uint16_t gLimAssocStaLimit;
 
-	/* Heart-Beat interval value */
-	uint32_t gLimHeartBeatCount;
 	tSirMacAddr gLimHeartBeatApMac[2];
 	uint8_t gLimHeartBeatApMacIndex;
 
@@ -481,13 +379,13 @@ typedef struct sAniSirLim {
 	uint32_t numSme, numMAC[4][16];
 
 	/* Debug counter to track number of Assoc Req frame drops */
-	/* when received in pStaDs->mlmState other than LINK_ESTABLISED */
+	/* when received in sta->mlmState other than LINK_ESTABLISED */
 	uint32_t gLimNumAssocReqDropInvldState;
 	/* counters to track rejection of Assoc Req due to Admission Control */
 	uint32_t gLimNumAssocReqDropACRejectTS;
 	uint32_t gLimNumAssocReqDropACRejectSta;
 	/* Debug counter to track number of Reassoc Req frame drops */
-	/* when received in pStaDs->mlmState other than LINK_ESTABLISED */
+	/* when received in sta->mlmState other than LINK_ESTABLISED */
 	uint32_t gLimNumReassocReqDropInvldState;
 	/* Debug counter to track number of Hash Miss event that */
 	/* will not cause a sending of de-auth/de-associate frame */
@@ -511,13 +409,6 @@ typedef struct sAniSirLim {
 	uint32_t gLim11bStaAssocRejectCount;
 
 #endif
-
-	/* Time stamp of the last beacon received from the BSS to which STA is connected. */
-	uint64_t gLastBeaconTimeStamp;
-	/* RX Beacon count for the current BSS to which STA is connected. */
-	uint32_t gCurrentBssBeaconCnt;
-	uint8_t gLastBeaconDtimCount;
-	uint8_t gLastBeaconDtimPeriod;
 
 	/* ////////////////////////////////////////     STATS/COUNTER RELATED END /////////////////////////////////////////// */
 
@@ -543,14 +434,6 @@ typedef struct sAniSirLim {
 	/* / Previous MLM State */
 	tLimMlmStates gLimPrevMlmState;
 
-	/* LIM to HAL SCAN Management Message Interface states */
-	tLimLimHalScanState gLimHalScanState;
-/* WLAN_SUSPEND_LINK Related */
-	SUSPEND_RESUME_LINK_CALLBACK gpLimSuspendCallback;
-	uint32_t *gpLimSuspendData;
-	SUSPEND_RESUME_LINK_CALLBACK gpLimResumeCallback;
-	uint32_t *gpLimResumeData;
-/* end WLAN_SUSPEND_LINK Related */
 	/* Can be set to invalid channel. If it is invalid, HAL */
 	/* should move to previous valid channel or stay in the */
 	/* current channel. CB state goes along with channel to resume to */
@@ -572,29 +455,10 @@ typedef struct sAniSirLim {
 	/* Number of STAs that do not support short slot time */
 	tLimNoShortSlotParams gLimNoShortSlotParams;
 
-	/* OLBC parameters */
-	tLimProtStaParams gLimOverlap11gParams;
-
-	tLimProtStaParams gLimOverlap11aParams;
-	tLimProtStaParams gLimOverlapHt20Params;
-	tLimProtStaParams gLimOverlapNonGfParams;
-
 	/* */
 	/* ---------------- DPH ----------------------- */
-	/* these used to live in DPH but are now moved here (where they belong) */
 	uint32_t gLimPhyMode;
-	uint32_t propRateAdjustPeriod;
-	uint32_t scanStartTime; /* used to measure scan time */
 
-	uint8_t gLimMyMacAddr[6];
-	uint8_t ackPolicy;
-
-	uint8_t gLimQosEnabled:1;       /* 11E */
-	uint8_t gLimWmeEnabled:1;       /* WME */
-	uint8_t gLimWsmEnabled:1;       /* WSM */
-	uint8_t gLimHcfEnabled:1;
-	uint8_t gLim11dEnabled:1;
-	uint8_t gLimProbeRespDisableFlag:1;    /* control over probe response */
 	/* ---------------- DPH ----------------------- */
 
 	/* ////////////////////////////////////////     STATES RELATED END /////////////////////////////////////////// */
@@ -636,8 +500,6 @@ typedef struct sAniSirLim {
 
 	/* admission control policy information */
 	tLimAdmitPolicyInfo admitPolicyInfo;
-	qdf_mutex_t lkPeGlobalLock;
-	uint8_t disableLDPCWithTxbfAP;
 #ifdef FEATURE_WLAN_TDLS
 	uint8_t gLimTDLSBufStaEnabled;
 	uint8_t gLimTDLSUapsdMask;
@@ -646,17 +508,7 @@ typedef struct sAniSirLim {
 #endif
 	/* ////////////////////////////////////////     MISC RELATED END /////////////////////////////////////////// */
 
-	/* ////////////////////////////////////////     ASSOC RELATED START /////////////////////////////////////////// */
-	/* Place holder for JoinReq message */
-	/* received by SME state machine */
-	/* tpSirSmeJoinReq       gpLimJoinReq; */
-
-	/* Place holder for ReassocReq message */
-	/* received by SME state machine */
-	/* tpSirSmeReassocReq    gpLimReassocReq;  sep23 review */
-
-	/* Current Authentication type used at STA */
-	/* tAniAuthType        gLimCurrentAuthType; */
+	/* ASSOC RELATED START */
 
 	/* Place holder for current authentication request */
 	/* being handled */
@@ -673,9 +525,6 @@ typedef struct sAniSirLim {
 	uint32_t gLimNumPreAuthContexts;
 	tLimPreAuthTable gLimPreAuthTimerTable;
 
-	/* Placed holder to deauth reason */
-	uint16_t gLimDeauthReasonCode;
-
 	/* Place holder for Pre-authentication node list */
 	struct tLimPreAuthNode *pLimPreAuthList;
 
@@ -686,7 +535,7 @@ typedef struct sAniSirLim {
 	tCacheParams protStaOverlapCache[LIM_PROT_STA_OVERLAP_CACHE_SIZE];
 	tCacheParams protStaCache[LIM_PROT_STA_CACHE_SIZE];
 
-	/* ////////////////////////////////////////     ASSOC RELATED END /////////////////////////////////////////// */
+	/* ASSOC RELATED END */
 
 	/* //////////////////////////////  HT RELATED           ////////////////////////////////////////// */
 	/* */
@@ -719,9 +568,6 @@ typedef struct sAniSirLim {
 
 	/* MIMO Power Save */
 	tSirMacHTMIMOPowerSaveState gHTMIMOPSState;
-
-	/* Scan In Power Save */
-	uint8_t gScanInPowersave;
 
 	/* */
 	/* A-MPDU Density */
@@ -756,8 +602,6 @@ typedef struct sAniSirLim {
 	/* Indicates whether an AP wants to associate PSMP enabled Stations */
 	uint8_t gHTControlledAccessOnly;
 
-	/* RIFS Mode. Set if no APSD legacy devices associated */
-	uint8_t gHTRifsMode;
 	/* OBss Mode . set when we have Non HT STA is associated or with in overlap bss */
 	uint8_t gHTObssMode;
 
@@ -796,50 +640,34 @@ typedef struct sAniSirLim {
 
 	uint8_t gHTNonGFDevicesPresent;
 
-	/* //////////////////////////////  HT RELATED           ////////////////////////////////////////// */
-
-#ifdef FEATURE_WLAN_TDLS
-	uint8_t gLimAddStaTdls;
-	uint8_t gLimTdlsLinkMode;
-	/* //////////////////////////////  TDLS RELATED         ////////////////////////////////////////// */
-#endif
+	/* HT RELATED END */
 
 	/* wsc info required to form the wsc IE */
 	tLimWscIeInfo wscIeInfo;
-	tpPESession gpSession;  /* Pointer to  session table */
-	/*
-	 * sessionID and transactionID from SME is stored here for those messages, for which
-	 * there is no session context in PE, e.g. Scan related messages.
-	 **/
-	uint8_t gSmeSessionId;
-	uint16_t gTransactionId;
+	struct pe_session *gpSession;  /* Pointer to  session table */
 
-	tSirRemainOnChnReq *gpLimRemainOnChanReq;       /* hold remain on chan request in this buf */
 	qdf_mutex_t lim_frame_register_lock;
 	qdf_list_t gLimMgmtFrameRegistratinQueue;
-	uint32_t mgmtFrameSessionId;
 	uint32_t tdls_frm_session_id;
 
-	tpPESession pSessionEntry;
+	struct pe_session *pe_session;
 	uint8_t reAssocRetryAttempt;
 	tLimDisassocDeauthCnfReq limDisassocDeauthCnfReq;
 	uint8_t deferredMsgCnt;
-	tSirDFSChannelList dfschannelList;
+	uint8_t deauthMsgCnt;
+	uint8_t disassocMsgCnt;
 	uint8_t gLimIbssStaLimit;
 
-	/* Number of channel switch IEs sent so far */
-	uint8_t gLimDfsChanSwTxCount;
-	uint8_t gLimDfsTargetChanNum;
-	uint8_t probeCounter;
-	uint8_t maxProbe;
-	QDF_STATUS(*add_bssdescr_callback)
-		(tpAniSirGlobal pMac, tpSirBssDescription buf,
-		uint32_t scan_id, uint32_t flags);
 	QDF_STATUS(*sme_msg_callback)
-		(tHalHandle hal, cds_msg_t *msg);
+		(struct mac_context *mac, struct scheduler_msg *msg);
+	QDF_STATUS(*stop_roaming_callback)
+		(mac_handle_t mac, uint8_t session_id, uint8_t reason,
+		 uint32_t requestor);
 	uint8_t retry_packet_cnt;
-	uint8_t scan_disabled;
 	uint8_t beacon_probe_rsp_cnt_per_scan;
+	wlan_scan_requester req_id;
+	QDF_STATUS (*sme_bcn_rcv_callback)(hdd_handle_t hdd_handle,
+				struct wlan_beacon_report *beacon_report);
 } tAniSirLim, *tpAniSirLim;
 
 struct mgmt_frm_reg_info {
@@ -850,66 +678,29 @@ struct mgmt_frm_reg_info {
 	uint8_t matchData[1];
 };
 
-/**
- * struct ani_action_oui_extension - action oui extn contents
- * @item: list element
- * @extension: wmi extnsion contents
- *
- * This structure encapsulates the wmi extension and list item to
- * create list of wmi extensions
- */
-struct ani_action_oui_extension {
-	qdf_list_node_t item;
-	struct wmi_action_oui_extension extension;
-};
-
-/**
- * struct ani_action_oui - each action oui info
- * @action_id: type of action oui
- * @oui_ext_list: list of action oui extensions
- * @oui_ext_list_lock: lock to control access to @oui_ext_list
- */
-struct ani_action_oui {
-	enum wmi_action_oui_id action_id;
-	qdf_list_t oui_ext_list;
-	qdf_mutex_t oui_ext_list_lock;
-};
-
-/**
- * struct action_oui_info - all action ouis info
- * @total_action_oui_extns: total no of oui extensions from all action ouis
- * @action_oui: array of action oui pointers
- */
-struct action_oui_info {
-	uint32_t total_action_oui_extns;
-	struct ani_action_oui *action_oui[WMI_ACTION_OUI_MAXIMUM_ID];
-};
-
 typedef struct sRrmContext {
-	tRrmSMEContext rrmSmeContext;
+	struct rrm_config_param rrmConfig;
+	tRrmSMEContext rrmSmeContext[MAX_MEASUREMENT_REQUEST];
 	tRrmPEContext rrmPEContext;
 } tRrmContext, *tpRrmContext;
 
-typedef struct sHalMacStartParameters {
-	/* parametes for the Firmware */
-	enum qdf_driver_type driverType;
-
-} tHalMacStartParameters;
-
 /**
- * enum auth_tx_ack_status - Indicate TX status of AUTH
- * @LIM_AUTH_ACK_NOT_RCD : Default status while waiting for ack status.
- * @LIM_AUTH_ACK_RCD_SUCCESS : Ack is received.
- * @LIM_AUTH_ACK_RCD_FAILURE : No Ack received.
+ * enum tx_ack_status - Indicate TX status
+ * @LIM_ACK_NOT_RCD: Default status while waiting for ack status.
+ * @LIM_ACK_RCD_SUCCESS: Ack is received.
+ * @LIM_ACK_RCD_FAILURE: No Ack received.
+ * @LIM_TX_FAILED: Failed to TX
  *
  * Indicate if driver is waiting for ACK status of auth or ACK received for AUTH
  * OR NO ACK is received for the auth sent.
  */
-enum auth_tx_ack_status {
-	LIM_AUTH_ACK_NOT_RCD,
-	LIM_AUTH_ACK_RCD_SUCCESS,
-	LIM_AUTH_ACK_RCD_FAILURE,
+enum tx_ack_status {
+	LIM_ACK_NOT_RCD,
+	LIM_ACK_RCD_SUCCESS,
+	LIM_ACK_RCD_FAILURE,
+	LIM_TX_FAILED,
 };
+
 /**
  * struct vdev_type_nss - vdev type nss structure
  * @sta: STA Nss value.
@@ -920,6 +711,7 @@ enum auth_tx_ack_status {
  * @ibss: IBSS Nss value.
  * @tdls: TDLS Nss value.
  * @ocb: OCB Nss value.
+ * @nan: NAN Nss value.
  *
  * Holds the Nss values of different vdev types.
  */
@@ -932,100 +724,127 @@ struct vdev_type_nss {
 	uint8_t ibss;
 	uint8_t tdls;
 	uint8_t ocb;
+	uint8_t nan;
+	uint8_t ndi;
 };
 
-/* ------------------------------------------------------------------- */
-/* / MAC Sirius parameter structure */
-typedef struct sAniSirGlobal {
-	enum qdf_driver_type gDriverType;
+/**
+ * struct mgmt_beacon_probe_filter
+ * @num_sta_sessions: Number of active PE STA sessions
+ * @sta_bssid: Array of PE STA session's peer BSSIDs
+ * @num_ibss_sessions: Number of active PE IBSS sessions
+ * @ibss_ssid: Array of PE IBSS session's SSID
+ * @num_sap_session: Number of active PE SAP sessions
+ * @sap_channel: Array of PE SAP session's channels
+ *
+ * Used to filter the STA/IBSS/SAP beacons/probes required in PE and
+ * drop other unwanted beacon/probe response frames
+ */
+struct mgmt_beacon_probe_filter {
+	uint8_t num_sta_sessions;
+	tSirMacAddr sta_bssid[WLAN_MAX_VDEVS];
+	uint8_t num_ibss_sessions;
+	tSirMacSSid ibss_ssid[WLAN_MAX_VDEVS];
+	uint8_t num_sap_sessions;
+	uint8_t sap_channel[WLAN_MAX_VDEVS];
+};
 
-	tAniSirCfg cfg;
+#ifdef FEATURE_ANI_LEVEL_REQUEST
+struct ani_level_params {
+	void (*ani_level_cb)(struct wmi_host_ani_level_event *ani, uint8_t num,
+			     void *context);
+	void *context;
+};
+#endif
+
+/**
+ * struct mac_context - Global MAC context
+ */
+struct mac_context {
+	enum qdf_driver_type gDriverType;
+	struct wlan_mlme_chain_cfg fw_chain_cfg;
+	struct wlan_mlme_cfg *mlme_cfg;
 	tAniSirLim lim;
-	tAniSirSch sch;
+	uint8_t nud_fail_behaviour;
+	struct sch_context sch;
 	tAniSirSys sys;
 
 	/* PAL/HDD handle */
-	tHddHandle hHdd;
+	hdd_handle_t hdd_handle;
 
-
-	tSmeStruct sme;
+	struct sme_context sme;
 	tSapStruct sap;
-	tCsrScanStruct scan;
-	tCsrRoamStruct roam;
-
+	struct csr_scanstruct scan;
+	struct csr_roamstruct roam;
 	tRrmContext rrm;
-#ifdef WLAN_FEATURE_CONCURRENT_P2P
-	tp2pContext p2pContext[MAX_NO_OF_P2P_SESSIONS];
-#else
-	tp2pContext p2pContext;
-#endif
-
-#ifdef FEATURE_WLAN_TDLS
-	bool is_tdls_power_save_prohibited;
-#endif
-
 	uint8_t isCoalesingInIBSSAllowed;
-
-	/* PNO offload */
-	bool pnoOffload;
-
-	csr_readyToSuspendCallback readyToSuspendCallback;
-	void *readyToSuspendContext;
 	uint8_t lteCoexAntShare;
 	uint8_t beacon_offload;
 	bool pmf_offload;
 	bool is_fils_roaming_supported;
-	uint32_t fEnableDebugLog;
-	uint16_t mgmtSeqNum;
-	bool enable5gEBT;
-	/* Miracast session 0-Disabled, 1-Source, 2-sink */
-	uint8_t fMiracastSessionPresent;
+	uint32_t f_sta_miracast_mcc_rest_time_val;
 #ifdef WLAN_FEATURE_EXTWOW_SUPPORT
 	csr_readyToExtWoWCallback readyToExtWoWCallback;
 	void *readyToExtWoWContext;
 #endif
-	uint32_t f_sta_miracast_mcc_rest_time_val;
-	uint8_t f_prefer_non_dfs_on_radar;
-	hdd_ftm_msg_processor ftm_msg_processor_callback;
-	uint32_t fine_time_meas_cap;
 	struct vdev_type_nss vdev_type_nss_2g;
 	struct vdev_type_nss vdev_type_nss_5g;
 
-	/* 802.11p enable */
-	bool enable_dot11p;
-
-	bool allow_adj_ch_bcn;
-	/* DBS capability based on INI and FW capability */
-	uint8_t hw_dbs_capable;
-	/* Based on INI parameter */
-	uint32_t dual_mac_feature_disable;
+	uint16_t mgmtSeqNum;
 	uint32_t sta_sap_scc_on_dfs_chan;
 	sir_mgmt_frame_ind_callback mgmt_frame_ind_cb;
-	sir_p2p_ack_ind_callback p2p_ack_ind_cb;
-	bool first_scan_done;
-	int8_t first_scan_bucket_threshold;
-	enum auth_tx_ack_status auth_ack_status;
-	uint8_t user_configured_nss;
-	bool sta_prefer_80MHz_over_160MHz;
+	qdf_atomic_t global_cmd_id;
+	struct wlan_objmgr_psoc *psoc;
+	struct wlan_objmgr_pdev *pdev;
+	void (*chan_info_cb)(struct scan_chan_info *chan_info);
+	void (*del_peers_ind_cb)(struct wlan_objmgr_psoc *psoc,
+				 uint8_t vdev_id);
+	/* Based on INI parameter */
+	uint32_t dual_mac_feature_disable;
+
 	enum  country_src reg_hint_src;
 	uint32_t rx_packet_drop_counter;
-	bool snr_monitor_enabled;
-	/* channel information callback */
-	void (*chan_info_cb)(struct scan_chan_info *chan_info);
-
-	/* action ouis info */
-	bool enable_action_oui;
-	struct action_oui_info *oui_info;
-
+	enum tx_ack_status auth_ack_status;
+	enum tx_ack_status assoc_ack_status;
+	uint8_t user_configured_nss;
+	bool ignore_assoc_disallowed;
+	uint32_t peer_rssi;
+	uint32_t peer_txrate;
+	uint32_t peer_rxrate;
+	uint32_t rx_retry_cnt;
+	uint32_t rx_mc_bc_cnt;
 	/* 11k Offload Support */
 	bool is_11k_offload_supported;
-} tAniSirGlobal;
-
-typedef enum {
-	eHIDDEN_SSID_NOT_IN_USE,
-	eHIDDEN_SSID_ZERO_LEN,
-	eHIDDEN_SSID_ZERO_CONTENTS
-} tHiddenssId;
+	uint8_t reject_addba_req;
+	bool usr_cfg_ps_enable;
+	uint16_t usr_cfg_ba_buff_size;
+	bool is_usr_cfg_amsdu_enabled;
+	uint8_t no_ack_policy_cfg[QCA_WLAN_AC_ALL];
+	uint32_t he_sgi_ltf_cfg_bit_mask;
+	uint8_t usr_cfg_tx_bfee_nsts;
+	struct mgmt_beacon_probe_filter bcn_filter;
+	tSirMacEdcaParamRecord usr_mu_edca_params[QCA_WLAN_AC_ALL];
+	bool usr_cfg_mu_edca_params;
+	bool he_om_ctrl_cfg_bw_set;
+	uint8_t he_om_ctrl_cfg_bw;
+	bool he_om_ctrl_cfg_nss_set;
+	uint8_t he_om_ctrl_cfg_nss;
+	bool he_om_ctrl_cfg_ul_mu_dis;
+	bool he_om_ctrl_cfg_tx_nsts_set;
+	uint8_t he_om_ctrl_cfg_tx_nsts;
+	bool he_om_ctrl_ul_mu_data_dis;
+#ifdef WLAN_FEATURE_11AX
+	tDot11fIEhe_cap he_cap_2g;
+	tDot11fIEhe_cap he_cap_5g;
+#endif
+	bool obss_scan_offload;
+	bool bcn_reception_stats;
+	csr_session_close_cb session_close_cb;
+	csr_roam_complete_cb session_roam_complete_cb;
+#ifdef FEATURE_ANI_LEVEL_REQUEST
+	struct ani_level_params ani_params;
+#endif
+};
 
 #ifdef FEATURE_WLAN_TDLS
 
