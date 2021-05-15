@@ -176,7 +176,7 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 }
 
 #ifdef CONFIG_HAVE_MOVE_PMD
-static int move_normal_pmd(struct vm_area_struct *vma, struct vm_area_struct *new_vma,
+static void move_normal_pmd(struct vm_area_struct *vma, struct vm_area_struct *new_vma,
 		  unsigned long old_addr,
 		  unsigned long new_addr, unsigned long old_end,
 		  pmd_t *old_pmd, pmd_t *new_pmd)
@@ -188,14 +188,14 @@ static int move_normal_pmd(struct vm_area_struct *vma, struct vm_area_struct *ne
 	if ((old_addr & PMD_MASK) || (new_addr & PMD_MASK)
 	    || old_end - old_addr < PMD_SIZE ||
 	    (new_vma->vm_flags & VM_NOHUGEPAGE))
-		return 0;
+		return;
 
 	/*
 	 * The destination pmd shouldn't be established, free_pgtables()
 	 * should have release it.
 	 */
 	if (WARN_ON(!pmd_none(*new_pmd))) {
-		return 0;
+		return;
 	}
 
 	/*
@@ -218,7 +218,7 @@ static int move_normal_pmd(struct vm_area_struct *vma, struct vm_area_struct *ne
 	if (new_ptl != old_ptl)
 		spin_unlock(new_ptl);
 	spin_unlock(old_ptl);
-	return 0;
+	return;
 }
 #endif
 
@@ -276,19 +276,16 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 			VM_BUG_ON(pmd_trans_huge(*old_pmd));
 		} else if (extent == PMD_SIZE) {
 #ifdef CONFIG_HAVE_MOVE_PMD
-				int err = 0;
 				VM_BUG_ON_VMA(vma->vm_file || !vma->anon_vma,
 					      vma);
 				/* See comment in move_ptes() */
 				if (need_rmap_locks)
 					anon_vma_lock_write(vma->anon_vma);
-				err = move_normal_pmd(vma, new_vma, old_addr,
+				move_normal_pmd(vma, new_vma, old_addr,
 						    new_addr, old_end,
 						    old_pmd, new_pmd);
 				if (need_rmap_locks)
 					anon_vma_unlock_write(vma->anon_vma);
-				if (err > 0)
-					continue;
 #endif
 		}
 
