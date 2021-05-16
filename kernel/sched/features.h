@@ -87,11 +87,11 @@
  * If enabled, this can be used to inform the scheduler about capacity
  * restrictions.
  */
-SCHED_FEAT(MIN_CAPACITY_CAPPING, false)
+#define SCHED_FEAT_MIN_CAPACITY_CAPPING 0
 
 /*
  * Enforce the priority of candidates selected by find_best_target()
  * ON: If the target CPU saves any energy, use that.
  * OFF: Use whichever of target or backup saves most.
  */
-SCHED_FEAT(FBT_STRICT_ORDER, false)
+#define SCHED_FEAT_FBT_STRICT_ORDER 0
