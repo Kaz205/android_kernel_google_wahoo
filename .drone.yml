@@ -11,4 +11,4 @@ steps:
       - pacman -Sy && pacman -S git bc inetutils python2 zip aarch64-linux-gnu-gcc arm-none-eabi-gcc --noconfirm
       - git clone https://github.com/Kaz205/AnyKernel3 --depth=1
       - ./drone.sh
-      - curl -i -T AnyKernel3/kernel.zip https://oshi.at
+      - curl -i -T AnyKernel3/kernel.zip https://filepush.co/upload/kernel.zip
