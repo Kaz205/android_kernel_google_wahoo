@@ -100,6 +100,8 @@ static unsigned long find_victims(int *vindex)
 			min_adj = adj;
 	}
 
+	pr_info("slmk: Searching for victims");
+
 	/* Start searching for victims from the highest adj (least important) */
 	for (i = max_adj; i >= min_adj; i--) {
 		int old_vindex;
@@ -220,6 +222,8 @@ static void scan_and_kill(void)
 	write_lock(&mm_free_lock);
 	nr_victims = nr_to_kill;
 	write_unlock(&mm_free_lock);
+
+	pr_info("slmk: Kill victims");
 
 	/* Kill the victims */
 	for (i = 0; i < nr_to_kill; i++) {
