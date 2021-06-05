@@ -322,10 +322,7 @@ static unsigned glink_debug_mask = QCOM_GLINK_INFO;
 module_param_named(debug_mask, glink_debug_mask,
 		   uint, S_IRUGO | S_IWUSR | S_IWGRP);
 
-static unsigned glink_pm_qos;
-module_param_named(pm_qos_enable, glink_pm_qos,
-		   uint, S_IRUGO | S_IWUSR | S_IWGRP);
-
+static unsigned glink_pm_qos = PM_QOS_DEFAULT_VALUE;
 
 static LIST_HEAD(transport_list);
 
