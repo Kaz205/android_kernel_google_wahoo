@@ -87,7 +87,7 @@
  * If enabled, this can be used to inform the scheduler about capacity
  * restrictions.
  */
-#define SCHED_FEAT_MIN_CAPACITY_CAPPING 1
+#define SCHED_FEAT_MIN_CAPACITY_CAPPING 0
 
 /*
  * Enforce the priority of candidates selected by find_best_target()
